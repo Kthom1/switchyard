@@ -1,0 +1,10 @@
+work/
+.env
+.env.*
+!.env.example
+__pycache__/
+
+WORKFLOW*.md
+!WORKFLOW.example.md
+
+plane.json

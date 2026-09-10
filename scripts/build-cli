@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Add the Go CLI to the runner bundle from this same source revision.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+[[ $# = 0 ]] || { echo 'Usage: scripts/build-cli' >&2; exit 2; }
+[[ $(uname -s) = Linux && $(uname -m) = x86_64 ]] || { echo 'Build on Linux x86-64.' >&2; exit 1; }
+[[ -z $(git status --porcelain) ]] || { echo 'Commit all source changes before packaging.' >&2; exit 1; }
+revision=$(git rev-parse --short HEAD)
+runner="$PWD/work/dist/switchyard-runner-$revision-linux_x86_64.tar.gz"
+output="$PWD/work/dist/switchyard-$revision-linux_x86_64.tar.gz"
+[[ ! -e $output && ! -e $output.sha256 ]] || { echo 'Output already exists; remove the generated archive and checksum before rebuilding.' >&2; exit 1; }
+if [[ ! -e $runner ]]; then scripts/build-runner; fi
+(cd "$(dirname "$runner")"; sha256sum -c "$(basename "$runner").sha256")
+stage=$(mktemp -d work/cli-package.XXXXXX)
+trap 'rm -rf "$stage"' EXIT
+tar -xzf "$runner" -C "$stage"
+bundle="$stage/switchyard"
+read -r product built_revision < "$bundle/BUILD.txt"
+[[ $product = Switchyard && $built_revision = "$(git rev-parse HEAD)" ]] || { echo 'Runner archive was built from a different source revision.' >&2; exit 1; }
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=$revision" -o "$bundle/switchyard" .
+cp "$(go env GOROOT)/LICENSE" "$bundle/licenses/Go-LICENSE"
+mkdir -p "$bundle/licenses/go-yaml"
+cp vendor/go.yaml.in/yaml/v3/LICENSE vendor/go.yaml.in/yaml/v3/NOTICE "$bundle/licenses/go-yaml/"
+go version >> "$bundle/BUILD.txt"
+[[ $("$bundle/switchyard" version) = "$revision" ]]
+tar -czf "$stage/cli.tar.gz" -C "$stage" switchyard
+mv -n "$stage/cli.tar.gz" "$output"
+[[ ! -e $stage/cli.tar.gz ]] || { echo 'Output appeared during packaging; leaving it unchanged.' >&2; exit 1; }
+set -o noclobber
+(cd "$(dirname "$output")"; sha256sum "$(basename "$output")" > "$(basename "$output").sha256")
+echo "Created $output and its checksum."

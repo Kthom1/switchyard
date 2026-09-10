@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Older service units can explicitly retain their separate Codex home.
+# Native CODEX_HOME takes precedence; otherwise Codex uses its normal defaults.
+if [[ -z ${CODEX_HOME:-} && -n ${SWITCHYARD_CODEX_HOME:-} ]]; then
+  [[ $SWITCHYARD_CODEX_HOME = /* ]] || { echo 'SWITCHYARD_CODEX_HOME must be absolute.' >&2; exit 1; }
+  export CODEX_HOME="$SWITCHYARD_CODEX_HOME"
+fi
+exec env -u SOURCE_REPO_URL codex "$@"

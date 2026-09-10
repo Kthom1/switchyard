@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# A stopped Plane installation, except Postgres, gives DB and uploads one recovery point.
+set -euo pipefail
+umask 077
+cd "$(dirname "$0")/.."
+[[ $# -le 1 ]] || { echo "Usage: scripts/backup [backup-directory]" >&2; exit 1; }
+project="${SWITCHYARD_COMPOSE_PROJECT:-switchyard}"
+[[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo "Invalid Compose project name" >&2; exit 1; }
+if [[ -n "${RESTIC_REPOSITORY:-}${RESTIC_REPOSITORY_FILE:-}" ]]; then
+  command -v restic >/dev/null || { echo "Install restic or unset RESTIC_REPOSITORY/RESTIC_REPOSITORY_FILE" >&2; exit 1; }
+fi
+running="$(scripts/plane ps --status running --services)"
+[[ "$running" == plane-db ]] || { echo "Stop Plane, then start only plane-db before backing up. See docs/backup.md." >&2; exit 1; }
+# A missing source volume must fail, never silently become an empty backup.
+docker volume inspect "${project}_uploads" >/dev/null
+output="$(realpath -m "${1:-work/backups}")"
+mkdir -p "$output"
+chmod 700 "$output"
+stage="$(mktemp -d "$output/.incomplete.XXXXXX")"
+trap '[[ -z "$stage" ]] || rm -rf -- "$stage"' EXIT
+mkdir "$stage/config"
+cp "${SWITCHYARD_PLANE_ENV:-.env.plane}" "$stage/config/.env.plane"
+cp "${SWITCHYARD_RUNNER_ENV:-.env}" "$stage/config/.env"
+cp "${SWITCHYARD_WORKFLOW:-WORKFLOW.md}" "$stage/config/WORKFLOW.md"
+files=(database.dump uploads.tar images.txt source.txt config/.env config/.env.plane config/WORKFLOW.md)
+for file in config.json plane.json; do
+  if [[ -f "$file" ]]; then
+    cp "$file" "$stage/config/$file"
+    files+=("config/$file")
+  fi
+done
+chmod 600 "$stage"/config/* "$stage"/config/.env*
+runner_home="${SWITCHYARD_CODEX_HOME:-$PWD/work/codex}"
+for file in auth.json config.toml; do
+  if [[ -f "$runner_home/$file" ]]; then
+    mkdir -p "$stage/config/codex"
+    cp "$runner_home/$file" "$stage/config/codex/$file"
+    chmod 600 "$stage/config/codex/$file"
+    files+=("config/codex/$file")
+  fi
+done
+scripts/plane config --images > "$stage/images.txt"
+if [[ -n ${SWITCHYARD_VERSION:-} ]]; then printf '%s\n' "$SWITCHYARD_VERSION"; elif [[ -e .git ]]; then git describe --always --dirty; else echo source-archive; fi > "$stage/source.txt"
+image="$(scripts/plane config --images plane-db)"
+# The init server accepts UNIX sockets; TCP opens only after initialization finishes.
+ready=false
+for attempt in {1..60}; do
+  if scripts/plane exec -T plane-db sh -eu -c 'pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; then ready=true; break; fi
+  sleep 1
+done
+[[ "$ready" == true ]] || { echo "Postgres did not become ready; no backup was published." >&2; exit 1; }
+scripts/plane exec -T plane-db sh -eu -c 'exec pg_dump -h /var/run/postgresql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$stage/database.dump"
+docker run --rm --pull=never --network none --read-only --mount "type=volume,source=${project}_uploads,target=/data,readonly" --entrypoint tar "$image" -C /data -cf - . > "$stage/uploads.tar"
+(
+  cd "$stage"
+  sha256sum "${files[@]}" > SHA256SUMS
+)
+complete="$output/switchyard-$(date -u +%Y%m%dT%H%M%SZ)-${stage##*.}"
+mv -T -- "$stage" "$complete"
+stage=""
+echo "Local backup complete: $complete"
+if [[ -n "${RESTIC_REPOSITORY:-}${RESTIC_REPOSITORY_FILE:-}" ]]; then
+  # Restic owns encryption, remote storage, integrity checks, and retention.
+  restic backup --tag switchyard "$complete" || { echo "Restic failed; the complete local backup remains at $complete" >&2; exit 1; }
+fi

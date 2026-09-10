@@ -1,0 +1,57 @@
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          version: 2026.9.2
+          working_directory: vendor/symphony/elixir
+      - name: Check the Go CLI
+        run: |
+          mise install go@1.27.1
+          mise exec go@1.27.1 -- go test ./...
+          mise exec go@1.27.1 -- go vet ./...
+          mise exec go@1.27.1 -- go build -o work/switchyard .
+      - name: Build from the pinned upstream source
+        run: scripts/build
+      - name: Check Switchyard configuration, hooks, and integration
+        run: scripts/check
+      - name: Check two-project scheduler routing with local fixtures
+        run: |
+          (cd work/symphony/elixir && mise exec -- mix escript.build)
+          python3 test/multi_project_test.py --runner work/symphony/elixir/bin/symphony
+      - name: Permit offline network namespaces on this ephemeral runner
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Check the complete assembled runtime
+        working-directory: work/symphony/elixir
+        run: |
+          mise exec -- mix format --check-formatted
+          mise exec -- mix lint
+          unshare --user --map-root-user --net sh -c 'ip link set lo up; COLUMNS=160 mise exec -- mix test --cover --exclude live_e2e' < /dev/null
+          mise exec -- mix dialyzer --format short
+      - name: Check fresh Plane configuration and proxy token redaction
+        run: |
+          cp test/fixtures/plane.env .env.plane
+          scripts/plane config --quiet
+          bash test/log_redaction.sh
+      - name: Restore a disposable backup
+        run: |
+          python3 test/backup_test.py --docker
+          python3 test/backup_test.py --docker --cli work/switchyard
+      - name: Set up a disposable local Plane instance
+        timeout-minutes: 10
+        run: python3 test/local_setup_test.py --cli work/switchyard

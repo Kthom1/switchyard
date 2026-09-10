@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Restore trusted backup files into a fresh checkout and a new, empty Compose project.
+set -euo pipefail
+umask 077
+[[ $# -eq 1 ]] || { echo "Usage: SWITCHYARD_COMPOSE_PROJECT=new-name scripts/restore BACKUP_DIRECTORY" >&2; exit 1; }
+backup="$(realpath "$1")"
+cd "$(dirname "$0")/.."
+project="${SWITCHYARD_COMPOSE_PROJECT:-}"
+[[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ && "$project" != switchyard ]] || { echo "Choose an explicit, new Compose project name; the default switchyard project is refused." >&2; exit 1; }
+for file in config.json plane.json "${SWITCHYARD_PLANE_ENV:-.env.plane}" "${SWITCHYARD_RUNNER_ENV:-.env}" "${SWITCHYARD_WORKFLOW:-WORKFLOW.md}"; do
+  [[ ! -e "$file" && ! -L "$file" ]] || { echo "Restore refuses existing configuration: $file" >&2; exit 1; }
+done
+runner_home="${SWITCHYARD_CODEX_HOME:-$PWD/work/codex}"
+for file in auth.json config.toml; do
+  [[ ! -e "$runner_home/$file" && ! -L "$runner_home/$file" ]] || { echo "Restore refuses existing runner configuration: $file" >&2; exit 1; }
+done
+docker info >/dev/null
+[[ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]] || { echo "Restore refuses an existing Compose project" >&2; exit 1; }
+volumes="$(docker volume ls --format '{{.Name}}')"
+for volume in "${project}_pgdata" "${project}_uploads"; do
+  [[ $'\n'"$volumes"$'\n' != *$'\n'"$volume"$'\n'* ]] || { echo "Restore refuses existing data volume: $volume" >&2; exit 1; }
+done
+(cd "$backup" && sha256sum --strict -c SHA256SUMS >/dev/null)
+# noclobber also closes the gap between the existence check and each copy.
+set -o noclobber
+cat "$backup/config/.env.plane" > "${SWITCHYARD_PLANE_ENV:-.env.plane}"
+cat "$backup/config/.env" > "${SWITCHYARD_RUNNER_ENV:-.env}"
+cat "$backup/config/WORKFLOW.md" > "${SWITCHYARD_WORKFLOW:-WORKFLOW.md}"
+for file in config.json plane.json; do
+  if [[ -f "$backup/config/$file" ]]; then
+    cat "$backup/config/$file" > "$file"
+  fi
+done
+for file in auth.json config.toml; do
+  if [[ -f "$backup/config/codex/$file" ]]; then
+    mkdir -p "$runner_home"
+    chmod 700 "$runner_home"
+    cat "$backup/config/codex/$file" > "$runner_home/$file"
+  fi
+done
+image="$(scripts/plane config --images plane-db)"
+scripts/plane up -d plane-db
+# The init server accepts UNIX sockets; TCP opens only after initialization finishes.
+ready=false
+for attempt in {1..60}; do
+  if scripts/plane exec -T plane-db sh -eu -c 'pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; then ready=true; break; fi
+  sleep 1
+done
+[[ "$ready" == true ]] || { echo "Postgres did not become ready; the isolated restore project is left for inspection." >&2; exit 1; }
+scripts/plane exec -T plane-db sh -eu -c 'exec pg_restore --exit-on-error --no-owner --no-privileges -h /var/run/postgresql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < "$backup/database.dump"
+docker volume create "${project}_uploads" >/dev/null
+docker run --rm -i --pull=never --network none --read-only --mount "type=volume,source=${project}_uploads,target=/data" --entrypoint tar "$image" -C /data -xf - < "$backup/uploads.tar"
+echo "Restored project $project with only Postgres running. Review configuration, images.txt, and docs/backup.md before starting Plane or an agent."

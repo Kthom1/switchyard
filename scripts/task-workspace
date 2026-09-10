@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${1:-}" in
+  root)
+    [[ ${SYMPHONY_WORKSPACE_ROOT:-} = /* ]] || { echo 'Workspace root must be an absolute path.' >&2; exit 1; }
+    mkdir -p "$SYMPHONY_WORKSPACE_ROOT"
+    if git -C "$SYMPHONY_WORKSPACE_ROOT" rev-parse --show-toplevel >/dev/null 2>&1; then
+      echo 'Workspace root must be outside every source checkout.' >&2
+      exit 1
+    fi
+    ;;
+  init|check)
+    if [[ $1 = init ]]; then
+      git -c credential.helper= -c credential.helper='!gh auth git-credential' clone -- "$SOURCE_REPO_URL" .
+    fi
+    [[ $(git rev-parse --show-toplevel) = "$(pwd -P)" ]] || { echo 'Task directory is not the repository root.' >&2; exit 1; }
+    [[ $(git remote get-url origin) = "$SOURCE_REPO_URL" ]] || { echo 'Task checkout belongs to another source repository.' >&2; exit 1; }
+    if [[ $1 = init ]]; then
+      git config credential.helper ''
+      git config --add credential.helper '!gh auth git-credential'
+      git checkout -b "agent/$(basename "$PWD")"
+    fi
+    [[ $(git branch --show-current) = "agent/$(basename "$PWD")" ]] || { echo 'Task checkout is not on its agent branch.' >&2; exit 1; }
+    if [[ -n ${SYMPHONY_PROJECT_ID:-} ]]; then
+      [[ -n ${SYMPHONY_ISSUE_ID:-} ]] || { echo 'Task identity is missing.' >&2; exit 1; }
+      if [[ $1 = init ]]; then
+        git config --local switchyard.issue-id "$SYMPHONY_ISSUE_ID"
+        git config --local switchyard.project-id "$SYMPHONY_PROJECT_ID"
+      fi
+      [[ $(git config --local --get switchyard.issue-id) = "$SYMPHONY_ISSUE_ID" && $(git config --local --get switchyard.project-id) = "$SYMPHONY_PROJECT_ID" ]] || {
+        echo 'Task checkout belongs to another task or project; existing work is preserved.' >&2; exit 1;
+      }
+    fi
+    ;;
+  *) echo 'Usage: task-workspace root|init|check' >&2; exit 2 ;;
+esac

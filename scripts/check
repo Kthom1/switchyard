@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+for check in test/*_test.py; do python3 "$check"; done
+for check in test/*_test.sh; do bash "$check"; done
+scripts/build --assemble-only
+tests=()
+for check in test/*.exs; do tests+=("test/symphony_elixir/${check##*/}"); done
+cd work/symphony/elixir
+mise exec -- mix format --check-formatted lib/symphony_elixir/plane.ex "${tests[@]}"
+mise exec -- mix test "${tests[@]}"
+mise exec -- mix specs.check

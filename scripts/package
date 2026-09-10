@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Package committed source, including the pinned submodule and its notices.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+[[ -z $(git status --porcelain --untracked-files=no) ]] || { echo 'Commit tracked changes before packaging.' >&2; exit 1; }
+pin=$(git rev-parse HEAD:vendor/symphony)
+[[ $(git -C vendor/symphony rev-parse HEAD) = "$pin" ]] || { echo 'Initialize the pinned Symphony submodule first.' >&2; exit 1; }
+output=${1:-work/dist/switchyard-$(git rev-parse --short HEAD).tar.gz}
+[[ ! -e $output && ! -e $output.sha256 ]] || { echo 'Output already exists; choose a new path.' >&2; exit 1; }
+mkdir -p "$(dirname "$output")" work
+stage=$(mktemp -d work/package.XXXXXX)
+trap 'rm -rf "$stage"' EXIT
+git archive --format=tar --prefix=switchyard/ HEAD > "$stage/source.tar"
+git -C vendor/symphony archive --format=tar --prefix=switchyard/vendor/symphony/ "$pin" > "$stage/upstream.tar"
+tar --concatenate --file="$stage/source.tar" "$stage/upstream.tar"
+gzip -n -c "$stage/source.tar" > "$stage/source.tar.gz"
+mv -n "$stage/source.tar.gz" "$output"
+[[ ! -e "$stage/source.tar.gz" ]] || { echo 'Output appeared during packaging; leaving it unchanged.' >&2; exit 1; }
+set -o noclobber
+(cd "$(dirname "$output")"; sha256sum "$(basename "$output")" > "$(basename "$output").sha256")
+echo "Created $output and its checksum."

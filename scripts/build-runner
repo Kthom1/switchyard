@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Build the adapted Linux executable using the pinned upstream Burrito release.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+[[ $# = 0 ]] || { echo 'Usage: scripts/build-runner' >&2; exit 2; }
+[[ $(uname -s) = Linux && $(uname -m) = x86_64 ]] || { echo 'Build on Linux x86-64.' >&2; exit 1; }
+[[ -z $(git status --porcelain) ]] || { echo 'Commit all source changes before packaging.' >&2; exit 1; }
+revision=$(git rev-parse --short HEAD)
+full_revision=$(git rev-parse HEAD)
+# Burrito caches by release version, so every committed payload needs its own identity.
+release_version="0.1.0+$full_revision"
+output="$PWD/work/dist/switchyard-runner-$revision-linux_x86_64.tar.gz"
+[[ ! -e $output && ! -e $output.sha256 ]] || { echo 'Output already exists; remove the generated archive and checksum before rebuilding.' >&2; exit 1; }
+scripts/build --assemble-only
+(
+  cd work/symphony/elixir
+  mise trust
+  mise install zig@0.15.2
+  mise exec -- mix local.hex --force --if-missing
+  mise exec -- mix local.rebar --force --if-missing
+  MIX_ENV=prod mise exec -- mix deps.get --only prod --check-locked
+  BURRITO_TARGET=linux_x86_64 MIX_ENV=prod mise exec zig@0.15.2 -- mix release symphony --version "$release_version" --overwrite
+)
+mkdir -p work/dist
+stage=$(mktemp -d work/runner-package.XXXXXX)
+trap 'rm -rf "$stage"' EXIT
+# Include corresponding source and all setup assets using the existing source packager.
+scripts/package "$stage/source.tar.gz"
+tar -xzf "$stage/source.tar.gz" -C "$stage"
+bundle="$stage/switchyard"
+mkdir -p "$bundle/bin" "$bundle/licenses/symphony"
+install -m 755 work/symphony/elixir/burrito_out/symphony_linux_x86_64 "$bundle/bin/symphony"
+cp vendor/symphony/LICENSE vendor/symphony/NOTICE "$bundle/licenses/symphony/"
+cp work/symphony/elixir/mix.lock "$bundle/licenses/mix.lock"
+shopt -s nullglob nocaseglob
+for dependency in work/symphony/elixir/deps/*; do
+  for notice in "$dependency"/LICENSE* "$dependency"/NOTICE* "$dependency"/COPYING* "$dependency"/README*; do
+    [[ -f $notice ]] || continue
+    mkdir -p "$bundle/licenses/${dependency##*/}"
+    cp "$notice" "$bundle/licenses/${dependency##*/}/"
+  done
+done
+# yaml_elixir omits its license text from the Hex archive.
+curl -fsSL https://raw.githubusercontent.com/KamilLelonek/yaml-elixir/v2.12.0/LICENSE > "$bundle/licenses/yaml_elixir/LICENSE.txt"
+elixir_root=$(cd work/symphony/elixir && mise where elixir)
+cp "$elixir_root/LICENSE" "$bundle/licenses/Elixir-LICENSE"
+otp_version=$(cd work/symphony/elixir && mise exec -- elixir -e 'IO.write(File.read!(Path.join([:code.root_dir(), "releases", :erlang.system_info(:otp_release), "OTP_VERSION"])))')
+curl -fsSL "https://raw.githubusercontent.com/erlang/otp/OTP-$otp_version/LICENSE.txt" > "$bundle/licenses/Erlang-OTP-LICENSE"
+# Native components pinned by Burrito 1.5.0.
+curl -fsSL https://raw.githubusercontent.com/openssl/openssl/openssl-3.5.1/LICENSE.txt > "$bundle/licenses/OpenSSL-LICENSE"
+curl -fsSL 'https://git.musl-libc.org/cgit/musl/plain/COPYRIGHT?h=v1.2.5' > "$bundle/licenses/musl-COPYRIGHT"
+cp "$(mise where zig@0.15.2)/LICENSE" "$bundle/licenses/Zig-LICENSE"
+{
+  echo "Switchyard $full_revision"
+  echo "Runner release $release_version"
+  echo "Symphony $(git rev-parse HEAD:vendor/symphony)"
+  echo "Erlang/OTP $otp_version"
+  echo "Elixir $(cat "$elixir_root/VERSION")"
+  echo "Burrito 1.5.0; Zig 0.15.2; OpenSSL 3.5.1; musl 1.2.5; linux_x86_64"
+} > "$bundle/BUILD.txt"
+tar -czf "$stage/runner.tar.gz" -C "$stage" switchyard
+mv -n "$stage/runner.tar.gz" "$output"
+[[ ! -e $stage/runner.tar.gz ]] || { echo 'Output appeared during packaging; leaving it unchanged.' >&2; exit 1; }
+set -o noclobber
+(cd "$(dirname "$output")"; sha256sum "$(basename "$output")" > "$(basename "$output").sha256")
+echo "Created $output and its checksum."

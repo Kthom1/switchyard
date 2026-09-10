@@ -1,0 +1,53 @@
+name: runner-package
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'integration/**'
+      - 'patches/**'
+      - 'vendor/symphony'
+      - 'scripts/**'
+      - 'test/runner*'
+      - '**/*.go'
+      - 'go.mod'
+      - 'deploy/**'
+      - 'WORKFLOW.example.md'
+      - 'docs/recommended.md'
+      - '.github/workflows/runner.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x86_64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          version: 2026.9.2
+          working_directory: vendor/symphony/elixir
+      - name: Check the Go CLI
+        run: |
+          mise install go@1.27.1
+          mise exec go@1.27.1 -- go test ./...
+          mise exec go@1.27.1 -- go vet ./...
+      - name: Build the Linux runner and CLI
+        run: mise exec go@1.27.1 -- scripts/build-cli
+      - name: Verify archive and clean Linux startup
+        run: |
+          revision=$(git rev-parse --short HEAD)
+          (cd work/dist; sha256sum -c *.sha256)
+          tar -xzf "work/dist/switchyard-$revision-linux_x86_64.tar.gz" -C work/dist
+          test "$(work/dist/switchyard/switchyard version)" = "$revision"
+          work/dist/switchyard/switchyard --help
+          bash test/runner_smoke.sh work/dist/switchyard/bin/symphony
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: switchyard-linux_x86_64
+          path: work/dist/*.tar.gz*
+          if-no-files-found: error

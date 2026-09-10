@@ -1,0 +1,30 @@
+--- a/elixir/lib/symphony_elixir/config/schema.ex
++++ b/elixir/lib/symphony_elixir/config/schema.ex
+@@ -336,7 +336,7 @@
+   def resolve_runtime_turn_sandbox_policy(settings, workspace \\ nil, opts \\ []) do
+     case settings.codex.turn_sandbox_policy do
+       %{} = policy ->
+-        {:ok, policy}
++        {:ok, resolve_workspace_git_policy(policy, workspace)}
+ 
+       _ ->
+         workspace
+@@ -344,6 +344,18 @@
+         |> default_runtime_turn_sandbox_policy(opts)
+     end
+   end
++
++  defp resolve_workspace_git_policy(%{"writableRoots" => roots} = policy, workspace) when is_binary(workspace) do
++    roots =
++      Enum.map(roots, fn
++        "$WORKSPACE/.git" -> Path.join(workspace, ".git")
++        root -> root
++      end)
++
++    Map.put(policy, "writableRoots", roots)
++  end
++
++  defp resolve_workspace_git_policy(policy, _workspace), do: policy
+ 
+   @spec normalize_issue_state(String.t()) :: String.t()
+   def normalize_issue_state(state_name) when is_binary(state_name) do

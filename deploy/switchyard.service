@@ -1,0 +1,16 @@
+[Unit]
+Description=Switchyard Plane task runner (OpenAI Symphony)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@WORKING_DIRECTORY@
+ExecStart=:/usr/bin/env "@INSTALL_ROOT@/scripts/run"
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+KillMode=control-group
+Environment=PATH=%h/.local/share/mise/shims:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=default.target
