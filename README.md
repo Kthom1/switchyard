@@ -10,6 +10,10 @@ Queue the work. Run it on your own machine. Review the result.
 
 </div>
 
+![Plane board showing fictional tasks in Todo, In Progress and Human Review](docs/images/board-demo.png)
+
+*A demo Plane board with tasks queued for Codex and ready for human review.*
+
 ## From “someone should fix this” to a branch you can review
 
 Switchyard connects a task board to Codex. Write a bug fix, feature or cleanup
