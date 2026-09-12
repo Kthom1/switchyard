@@ -15,12 +15,41 @@ import urllib.request
 import uuid
 
 
+def failure_summary(result, env):
+    # Classify known failures without publishing captured output or private paths.
+    output = (result.stdout + result.stderr).lower()
+    categories = (
+        (b"toomanyrequests", "registry rate limit"),
+        (b"too many requests", "registry rate limit"),
+        (b"manifest unknown", "image manifest unavailable"),
+        (b"no matching manifest", "image platform unavailable"),
+        (b"unauthorized", "authorization failure"),
+        (b"pull access denied", "image access denied"),
+        (b"error getting credentials", "Docker credential helper"),
+        (b"cannot connect to the docker daemon", "Docker daemon unavailable"),
+        (b"'compose' is not a docker command", "Compose unavailable"),
+        (b"timeout", "timeout"),
+        (b"no such host", "DNS failure"),
+        (b"already in use", "port unavailable"),
+        (b"permission denied", "permission denied"),
+        (b"no space left on device", "disk full"),
+        (b"install prerequisites first", "missing prerequisite"),
+        (b"a systemd user session is required", "systemd session unavailable"),
+    )
+    category = next((label for text, label in categories if text in output), "unclassified")
+    root = Path(env["SWITCHYARD_HOME"])
+    artifacts = [name for name in ("scripts/plane", "bin/symphony", "config.json", ".env.plane", "plane.json")
+                 if (root / name).is_file()]
+    return f"category={category}; prepared={','.join(artifacts) or 'none'}"
+
+
 def run(args, env, *, check=True, data=None):
     result = subprocess.run([str(arg) for arg in args], env=env, capture_output=True,
                             input=data, stdin=subprocess.DEVNULL if data is None else None)
     if check and result.returncode:
         # Setup output can contain credentials if the implementation regresses.
-        raise RuntimeError(f"{Path(args[0]).name} failed with exit {result.returncode}; output withheld")
+        raise RuntimeError(f"{Path(args[0]).name} failed with exit {result.returncode}; "
+                           f"{failure_summary(result, env)}; output withheld")
     return result
 
 

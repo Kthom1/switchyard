@@ -328,7 +328,7 @@ defmodule SymphonyElixir.PlaneTest do
                 print(json.dumps({"id": message["id"], "result": {"turn": {"id": "plane-turn"}}}), flush=True)
                 print(json.dumps({"id": 99, "method": "item/tool/call", "params": {"tool": "plane", "arguments": {"action": "comment", "issue_id": "#{@issue}", "text": "wire check"}}}), flush=True)
             elif message.get("id") == 99:
-                print(json.dumps({"method": "turn/completed"}), flush=True)
+                print(json.dumps({"method": "turn/completed", "params": {"threadId": "plane-thread", "turn": {"id": "plane-turn", "status": "completed", "items": []}}}), flush=True)
                 break
     """)
 
