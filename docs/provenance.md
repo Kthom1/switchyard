@@ -26,7 +26,7 @@ The base Compose file comes from Plane's v1.4.2 release.
 | Postgres | `postgres:15.7-alpine` |
 | Valkey | `valkey/valkey:7.2.11-alpine` |
 | RabbitMQ | `rabbitmq:3.13.6-management-alpine` |
-| MinIO | `minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e` |
+| MinIO | `quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e` |
 
 `scripts/plane` applies both the base configuration and `deploy/compose.override.yml`.
 The override pins MinIO by digest, binds the proxy to loopback and redacts API keys
