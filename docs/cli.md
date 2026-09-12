@@ -21,14 +21,19 @@ The release bundle includes the Symphony runner, Erlang/OTP and Elixir.
 
 ## Install on your PATH
 
-Download the [v0.1.0 Linux x86-64 bundle](https://github.com/Kthom1/switchyard/releases/download/v0.1.0/switchyard-v0.1.0-linux_x86_64.tar.gz)
-and its [SHA-256 checksum](https://github.com/Kthom1/switchyard/releases/download/v0.1.0/switchyard-v0.1.0-linux_x86_64.tar.gz.sha256),
-then run these commands from the download directory:
+Download the [latest Linux x86-64 release](https://github.com/Kthom1/switchyard/releases/latest)
+and its matching SHA-256 checksum into a new, empty directory:
 
 ```bash
-sha256sum -c switchyard-v0.1.0-linux_x86_64.tar.gz.sha256
+switchyard_download=$(mktemp -d)
+cd "$switchyard_download"
+switchyard_release=$(gh release view --repo Kthom1/switchyard --json tagName --jq .tagName)
+switchyard_archive="switchyard-${switchyard_release}-linux_x86_64.tar.gz"
+gh release download "$switchyard_release" --repo Kthom1/switchyard \
+  --pattern "$switchyard_archive" --pattern "$switchyard_archive.sha256"
+sha256sum -c "$switchyard_archive.sha256"
 mkdir -p "$HOME/.local/share" "$HOME/.local/bin"
-tar -xzf switchyard-v0.1.0-linux_x86_64.tar.gz -C "$HOME/.local/share"
+tar -xzf "$switchyard_archive" -C "$HOME/.local/share"
 ln -s "$HOME/.local/share/switchyard/switchyard" "$HOME/.local/bin/switchyard"
 export PATH="$HOME/.local/bin:$PATH"
 switchyard version
