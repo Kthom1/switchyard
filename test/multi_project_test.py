@@ -89,7 +89,7 @@ def app_server():
                 tool(94, "set_state", state="Human Review")
             else:
                 event("finish")
-                send({"method": "turn/completed"})
+                send({"method": "turn/completed", "params": {"threadId": Path.cwd().name, "turn": {"id": "acceptance-turn", "status": "completed", "items": []}}})
                 break
 
 
