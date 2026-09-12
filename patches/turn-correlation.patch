@@ -9,50 +9,57 @@
            {:ok, result} ->
              Logger.info("Codex session completed for #{issue_context(issue)} session_id=#{session_id}")
  
-@@ -365,22 +365,23 @@
+@@ -365,22 +365,21 @@
      end
    end
  
 -  defp await_turn_completion(port, on_message, tool_executor, auto_approve_requests) do
-+  defp await_turn_completion(port, on_message, tool_executor, auto_approve_requests, expected_turn) do
-     receive_loop(
-       port,
-       on_message,
-       Config.settings!().codex.turn_timeout_ms,
-       "",
-       tool_executor,
+-    receive_loop(
+-      port,
+-      on_message,
+-      Config.settings!().codex.turn_timeout_ms,
+-      "",
+-      tool_executor,
 -      auto_approve_requests
-+      auto_approve_requests,
-+      expected_turn
-     )
-   end
- 
+-    )
+-  end
+-
 -  defp receive_loop(port, on_message, timeout_ms, pending_line, tool_executor, auto_approve_requests) do
-+  defp receive_loop(port, on_message, timeout_ms, pending_line, tool_executor, auto_approve_requests, expected_turn) do
++  defp await_turn_completion(port, on_message, tool_executor, auto_approve_requests, expected_turn) do
++    turn_context = %{
++      expected_turn: expected_turn,
++      tool_executor: tool_executor,
++      auto_approve_requests: auto_approve_requests
++    }
++
++    receive_loop(port, on_message, Config.settings!().codex.turn_timeout_ms, "", turn_context)
++  end
++
++  defp receive_loop(port, on_message, timeout_ms, pending_line, turn_context) do
      receive do
        {^port, {:data, {:eol, chunk}}} ->
          complete_line = pending_line <> to_string(chunk)
 -        handle_incoming(port, on_message, complete_line, timeout_ms, tool_executor, auto_approve_requests)
-+        handle_incoming(port, on_message, complete_line, timeout_ms, tool_executor, auto_approve_requests, expected_turn)
++        handle_incoming(port, on_message, complete_line, timeout_ms, turn_context)
  
        {^port, {:data, {:noeol, chunk}}} ->
          receive_loop(
-@@ -389,7 +390,8 @@
+@@ -388,8 +387,7 @@
+           on_message,
            timeout_ms,
            pending_line <> to_string(chunk),
-           tool_executor,
+-          tool_executor,
 -          auto_approve_requests
-+          auto_approve_requests,
-+          expected_turn
++          turn_context
          )
  
        {^port, {:exit_status, status}} ->
-@@ -400,37 +402,18 @@
+@@ -400,37 +398,24 @@
      end
    end
  
 -  defp handle_incoming(port, on_message, data, timeout_ms, tool_executor, auto_approve_requests) do
-+  defp handle_incoming(port, on_message, data, timeout_ms, tool_executor, auto_approve_requests, expected_turn) do
++  defp handle_incoming(port, on_message, data, timeout_ms, turn_context) do
      payload_string = to_string(data)
  
      case Jason.decode(payload_string) do
@@ -85,22 +92,28 @@
 -        {:error, {:turn_cancelled, Map.get(payload, "params")}}
 +      {:ok, %{"method" => method} = payload}
 +      when method in ["turn/completed", "turn/failed", "turn/cancelled"] ->
-+        if terminal_for_turn?(payload, expected_turn) do
++        if terminal_for_turn?(payload, turn_context.expected_turn) do
 +          finish_turn(on_message, payload, payload_string, port)
 +        else
-+          emit_message(on_message, :notification, %{payload: payload, raw: payload_string}, metadata_from_message(port, payload))
-+          receive_loop(port, on_message, timeout_ms, "", tool_executor, auto_approve_requests, expected_turn)
++          emit_message(
++            on_message,
++            :notification,
++            %{payload: payload, raw: payload_string},
++            metadata_from_message(port, payload)
++          )
++
++          receive_loop(port, on_message, timeout_ms, "", turn_context)
 +        end
  
        {:ok, %{"method" => method} = payload}
        when is_binary(method) ->
-@@ -442,7 +425,8 @@
+@@ -441,8 +426,7 @@
+           payload_string,
            method,
            timeout_ms,
-           tool_executor,
+-          tool_executor,
 -          auto_approve_requests
-+          auto_approve_requests,
-+          expected_turn
++          turn_context
          )
  
        {:ok, payload} ->
@@ -109,7 +122,7 @@
          )
  
 -        receive_loop(port, on_message, timeout_ms, "", tool_executor, auto_approve_requests)
-+        receive_loop(port, on_message, timeout_ms, "", tool_executor, auto_approve_requests, expected_turn)
++        receive_loop(port, on_message, timeout_ms, "", turn_context)
  
        {:error, _reason} ->
          log_non_json_stream_line(payload_string, "turn stream")
@@ -118,7 +131,7 @@
          end
  
 -        receive_loop(port, on_message, timeout_ms, "", tool_executor, auto_approve_requests)
-+        receive_loop(port, on_message, timeout_ms, "", tool_executor, auto_approve_requests, expected_turn)
++        receive_loop(port, on_message, timeout_ms, "", turn_context)
 +    end
 +  end
 +
@@ -153,31 +166,42 @@
      end
    end
  
-@@ -498,7 +513,8 @@
+@@ -497,8 +512,7 @@
+          payload_string,
           method,
           timeout_ms,
-          tool_executor,
+-         tool_executor,
 -         auto_approve_requests
-+         auto_approve_requests,
-+         expected_turn
++         turn_context
         ) do
      metadata = metadata_from_message(port, payload)
  
-@@ -523,7 +539,7 @@
+@@ -509,8 +523,8 @@
+            payload_string,
+            on_message,
+            metadata,
+-           tool_executor,
+-           auto_approve_requests
++           turn_context.tool_executor,
++           turn_context.auto_approve_requests
+          ) do
+       :input_required ->
+         emit_message(
+@@ -523,7 +537,7 @@
          {:error, {:turn_input_required, payload}}
  
        :approved ->
 -        receive_loop(port, on_message, timeout_ms, "", tool_executor, auto_approve_requests)
-+        receive_loop(port, on_message, timeout_ms, "", tool_executor, auto_approve_requests, expected_turn)
++        receive_loop(port, on_message, timeout_ms, "", turn_context)
  
        :approval_required ->
          emit_message(
-@@ -557,7 +573,7 @@
+@@ -557,7 +571,7 @@
            )
  
            Logger.debug("Codex notification: #{inspect(method)}")
 -          receive_loop(port, on_message, timeout_ms, "", tool_executor, auto_approve_requests)
-+          receive_loop(port, on_message, timeout_ms, "", tool_executor, auto_approve_requests, expected_turn)
++          receive_loop(port, on_message, timeout_ms, "", turn_context)
          end
      end
    end

@@ -57,7 +57,7 @@ day, a spare machine or a server you access privately. The agent runs there;
 your browser can be on the same computer or another one. Switchyard uses your
 installed Codex, existing configuration and login.
 
-Download [Switchyard v0.1.0](https://github.com/Kthom1/switchyard/releases/tag/v0.1.0),
+Download the [latest Switchyard release](https://github.com/Kthom1/switchyard/releases/latest),
 install the [Linux bundle on your PATH](docs/cli.md#install-on-your-path),
 then run:
 
