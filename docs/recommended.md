@@ -42,6 +42,12 @@ codex
 Open `/skills` and confirm `switchyard` is listed, then start a new session. Do
 not replace an existing copy without reviewing its local changes first.
 
+Separately give the orchestrator the installation-specific connection guidance:
+how to reach an authorized management Plane client or signed-in board, which
+installation home applies, and where to read its current `WORKFLOW.md` and
+settings. Keep endpoint, host and access values in that local guidance rather
+than in the public skill.
+
 The plugins and skills use your normal Codex home, usually `~/.codex`, or your
 configured `CODEX_HOME`. They are available to your interactive Codex sessions
 as well as Switchyard. Use the same `CODEX_HOME` when installing and running.

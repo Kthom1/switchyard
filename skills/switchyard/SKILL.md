@@ -31,12 +31,17 @@ connection details:
 1. Run `switchyard status` and `switchyard project list` in the configured
    environment. Use `switchyard --help` and the installed documentation when the
    commands differ.
-2. Confirm the target Plane project maps to the intended repository and that this
+2. Read the installation-specific connection guidance and its current
+   `WORKFLOW.md` and settings. Confirm the project mappings, required labels,
+   active and terminal states, and workspace root; keep endpoint, host, and
+   access values in that local guidance.
+3. Confirm the target Plane project maps to the intended repository and that this
    mapping is consumed by the active Symphony runner. A Plane project by itself
    is not a runner connection.
-3. Use the configured Plane client or board for task operations. Keep credentials
-   in the installation; do not copy tokens into task text, prompts, or worker
-   configuration.
+4. Use an authorized management Plane client or signed-in board for queue-wide
+   task operations. The runner's Plane tool is scoped to its assigned project and
+   task and cannot manage an arbitrary orchestration queue. Keep credentials out
+   of task text, prompts, and worker configuration.
 
 If the repository is not mapped or the runner is unavailable, report that gap.
 Do not invent a second queue or runner.
@@ -52,7 +57,9 @@ Do not invent a second queue or runner.
    do not ask again for authorization that the user already gave.
 3. **Queue independent work.** Put an authorized task in the mapped project using
    the installation's active state and required label, normally Todo plus `agent`.
-   Keep dependent tasks inactive until their prerequisite revision is available.
+   Keep dependent tasks inactive until their prerequisite revision is available;
+   when integration is necessary, record that revision and the feature commit
+   boundary.
 4. **Confirm pickup.** Check that the intended task and run become active and
    produce real activity. A board update, process, token count, or completion
    event alone does not prove the assigned worker is progressing.
@@ -61,13 +68,21 @@ Do not invent a second queue or runner.
    After a narrow correction, request only the affected check.
 6. **Steer the active worker.** Consolidate corrections into the current brief,
    then verify acknowledgement and changed behavior. A board comment preserves
-   history but does not prove a running model read it. If necessary, use the
-   installation's supported stop and requeue process while preserving the same
-   checkout and work; never create a competing coding task.
+   history but does not prove a running model read it. To stop safely, normally
+   move to Blocked or Human Review so work is preserved; do not use Done or
+   Cancelled to pause because they allow cleanup. Wait for a successful
+   reconciliation and verify the intended run is absent before requeueing the
+   same task and checkout. A state update alone is not proof of a stop, and
+   tracker failures can delay it. Follow the installed version's
+   `docs/operations.md` for the authoritative procedure; never create a competing
+   coding task.
 7. **Stop waste and diagnose first.** Intervene when work repeats, drifts, or
    stalls. For repeated failures, isolate whether the source, fixture, locator,
    or harness is wrong and get one decisive reproduction before requesting a
-   product change. Route the bounded correction to the owning worker.
+   product change. Route the bounded correction to the owning worker. Before a
+   browser workaround, inspect installed CLI capabilities and official
+   documentation. Bound any extra-tool trial and adopt it only when it
+   demonstrates a concrete benefit.
 8. **Review identity and proof.** Match completion to the intended task and run.
    Require a committed branch, exact revision, relevant check results, and known
    limitations. Preserve review and delivery evidence before cleanup.
@@ -83,15 +98,3 @@ run relevant checks, and provide the branch, exact revision, results, and
 limitations at the requested stopping point. If blocked, preserve the checkout
 and report the concrete next action. Do not change runner configuration or
 recursively queue the assignment.
-
-## Scenario checks
-
-- **Capture:** "Do this tomorrow" becomes unlabelled Backlog work and does not run.
-- **Mapped dispatch:** authorized coding work enters the mapped project and is
-  picked up by its Symphony worker.
-- **Correction:** one consolidated correction reaches that worker, with
-  acknowledgement or a preserved stop/requeue; no duplicate task is created.
-- **Review and delivery:** the handoff names branch, revision, checks, and limits,
-  stops at Human Review, and crosses later delivery boundaries only when allowed.
-- **Assigned worker:** the worker implements its current task rather than
-  requeueing or delegating it.
