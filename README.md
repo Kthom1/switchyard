@@ -104,6 +104,7 @@ be independent; Plane's blocking relationships do not control the runner.
 | Build Switchyard from source | [Source build](docs/getting-started.md) |
 | Run in the background, connect remotely or stop a task | [Operating guide](docs/operations.md) |
 | Add skills and plugins | [Recommended plugins and skills](docs/recommended.md) |
+| Orchestrate work with a conversational agent | [Switchyard skill](docs/recommended.md#install-the-switchyard-orchestration-skill) |
 | Back up or recover an installation | [Backup and restore](docs/backup.md) |
 | Change the integration and run its checks | [Contributing](CONTRIBUTING.md) |
 
