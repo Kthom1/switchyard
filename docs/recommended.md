@@ -20,6 +20,28 @@ It preserves anything already installed. Connect repositories afterward with
 Ponytail includes hooks that can apply its guidance throughout a session. Read
 [Ponytail hooks](#ponytail-hooks) before enabling them.
 
+### Install the Switchyard orchestration skill
+
+The repository includes a separate [Switchyard skill](../skills/switchyard/SKILL.md)
+for conversational agents that scope, dispatch, monitor and review worker tasks.
+It is independent of the optional Recommended set above. From a Switchyard source
+checkout or extracted release, install it in the Codex home used by the
+orchestrator:
+
+```bash
+codex_skills="${CODEX_HOME:-$HOME/.codex}/skills"
+mkdir -p "$codex_skills"
+test ! -e "$codex_skills/switchyard" || {
+  echo "switchyard skill already exists; review it before replacing" >&2
+  exit 1
+}
+cp -R skills/switchyard "$codex_skills/"
+codex
+```
+
+Open `/skills` and confirm `switchyard` is listed, then start a new session. Do
+not replace an existing copy without reviewing its local changes first.
+
 The plugins and skills use your normal Codex home, usually `~/.codex`, or your
 configured `CODEX_HOME`. They are available to your interactive Codex sessions
 as well as Switchyard. Use the same `CODEX_HOME` when installing and running.
