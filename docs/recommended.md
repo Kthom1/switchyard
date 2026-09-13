@@ -23,7 +23,7 @@ Ponytail includes hooks that can apply its guidance throughout a session. Read
 ### Install the Switchyard orchestration skill
 
 The repository includes a separate [Switchyard skill](../skills/switchyard/SKILL.md)
-for conversational agents that scope, dispatch, monitor and review worker tasks.
+for conversational orchestrators that scope, dispatch, monitor and review worker tasks.
 It is independent of the optional Recommended set above. From a Switchyard source
 checkout or extracted release, install it in the Codex home used by the
 orchestrator:
