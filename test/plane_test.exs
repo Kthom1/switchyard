@@ -2,6 +2,7 @@ defmodule SymphonyElixir.PlaneTest do
   use SymphonyElixir.TestSupport
   alias SymphonyElixir.Config.Schema
   alias SymphonyElixir.Plane
+  alias SymphonyElixir.Tracker.Issue
 
   @project "11111111-1111-4111-8111-111111111111"
   @issue "22222222-2222-4222-8222-222222222222"
@@ -83,8 +84,102 @@ defmodule SymphonyElixir.PlaneTest do
       Req.Test.json(conn, %{"results" => [put_in(raw(), ["state", "name"], "Backlog")], "next_page_results" => false})
     end)
 
+    expect_relations()
     assert {:ok, [issue]} = Plane.fetch_issues_by_states([" todo "])
     assert issue.id == @issue
+  end
+
+  test "Todo waits for active Plane blockers while terminal blockers dispatch" do
+    for {blocker_state, dispatchable?} <- [{"In Progress", false}, {"Done", true}] do
+      Req.Test.expect(__MODULE__, fn conn ->
+        Req.Test.json(conn, [raw()])
+      end)
+
+      expect_relations(@issue, @project, [blocker_relation(@project)])
+      blocker = raw() |> Map.merge(%{"id" => @other_issue, "sequence_id" => 2}) |> put_in(["state", "name"], blocker_state)
+      expect_project_issue(@other_issue, @project, blocker)
+
+      assert {:ok, [issue]} = Plane.fetch_issues_by_states(["Todo"])
+      assert issue.blocked_by == [%{id: @other_issue, identifier: "SY-2", state: blocker_state}]
+      assert issue.dispatchable == dispatchable?
+    end
+  end
+
+  test "In Progress is an explicit dependency override" do
+    Req.Test.expect(__MODULE__, fn conn ->
+      Req.Test.json(conn, [put_in(raw(), ["state", "name"], "In Progress")])
+    end)
+
+    assert {:ok, [issue]} = Plane.fetch_issues_by_states(["In Progress"])
+    assert issue.blocked_by == []
+    assert issue.dispatchable
+  end
+
+  test "unapproved Todo tasks do not perform dependency lookups" do
+    Req.Test.expect(__MODULE__, fn conn ->
+      Req.Test.json(conn, [Map.put(raw(), "labels", [])])
+    end)
+
+    assert {:ok, [issue]} = Plane.fetch_issues_by_states(["Todo"])
+    refute Issue.routable?(issue, ["agent"])
+  end
+
+  test "dispatch refresh sees new blockers and fails closed when their project is not configured" do
+    expect_issue()
+    expect_relations(@issue, @project, [blocker_relation(@other_project)])
+
+    assert {:ok, [issue]} = Plane.fetch_issues_by_ids([@issue])
+    assert issue.blocked_by == [%{id: @other_issue, identifier: nil, state: nil}]
+    refute issue.dispatchable
+  end
+
+  test "dependency lookup failures remain errors on lifecycle refresh" do
+    expect_issue()
+    Req.Test.expect(__MODULE__, fn conn -> Plug.Conn.send_resp(conn, 503, "") end)
+
+    assert Plane.fetch_issues_by_ids([@issue]) == {:error, {:plane_http, 503}}
+  end
+
+  test "malformed or unavailable Plane dependency data holds only the affected Todo" do
+    override =
+      raw()
+      |> Map.merge(%{"id" => @other_issue, "sequence_id" => 2})
+      |> put_in(["state", "name"], "In Progress")
+
+    for response <- [%{}, %{"blocked_by" => [%{"id" => "invalid"}]}] do
+      Req.Test.expect(__MODULE__, fn conn -> Req.Test.json(conn, [raw(), override]) end)
+
+      Req.Test.expect(__MODULE__, fn conn ->
+        assert String.ends_with?(conn.request_path, "/work-items/#{@issue}/relations/")
+        Req.Test.json(conn, response)
+      end)
+
+      assert {:ok, issues} = Plane.fetch_issues_by_states(["Todo", "In Progress"])
+      refute Enum.find(issues, &(&1.id == @issue)).dispatchable
+      assert Enum.find(issues, &(&1.id == @other_issue)).dispatchable
+    end
+
+    Req.Test.expect(__MODULE__, fn conn -> Req.Test.json(conn, [raw(), override]) end)
+    Req.Test.expect(__MODULE__, fn conn -> Plug.Conn.send_resp(conn, 503, "") end)
+    assert {:ok, issues} = Plane.fetch_issues_by_states(["Todo", "In Progress"])
+    refute Enum.find(issues, &(&1.id == @issue)).dispatchable
+    assert Enum.find(issues, &(&1.id == @other_issue)).dispatchable
+
+    for blocker_response <- [raw(), :unavailable] do
+      Req.Test.expect(__MODULE__, fn conn -> Req.Test.json(conn, [raw(), override]) end)
+      expect_relations(@issue, @project, [blocker_relation(@project)])
+
+      Req.Test.expect(__MODULE__, fn conn ->
+        case blocker_response do
+          :unavailable -> Plug.Conn.send_resp(conn, 503, "")
+          row -> Req.Test.json(conn, row)
+        end
+      end)
+
+      assert {:ok, issues} = Plane.fetch_issues_by_states(["Todo", "In Progress"])
+      refute Enum.find(issues, &(&1.id == @issue)).dispatchable
+      assert Enum.find(issues, &(&1.id == @other_issue)).dispatchable
+    end
   end
 
   test "repeated cursors fail rather than looping" do
@@ -404,6 +499,8 @@ defmodule SymphonyElixir.PlaneTest do
       Req.Test.json(conn, [other_raw(), put_in(other_raw(), ["state", "name"], "Backlog")])
     end)
 
+    expect_relations(@issue, @project)
+    expect_relations(@other_issue, @other_project)
     assert {:ok, [first, second]} = Plane.fetch_issues_by_states(["Todo"])
     assert {first.identifier, second.identifier} == {"SY-1", "WEB-1"}
     assert {first.id, second.id} == {@issue, @other_issue}
@@ -426,6 +523,7 @@ defmodule SymphonyElixir.PlaneTest do
       Req.Test.json(conn, Map.put(other_raw(), "id", @issue))
     end)
 
+    expect_relations(@issue, @other_project)
     assert {:ok, [moved]} = Plane.fetch_issues_by_ids([@issue])
     assert moved.id == @issue and moved.identifier == "WEB-1"
     assert moved.native_ref["project_id"] == @other_project
@@ -558,6 +656,13 @@ defmodule SymphonyElixir.PlaneTest do
 
   defp other_raw, do: Map.merge(raw(), %{"id" => @other_issue, "project" => @other_project})
 
+  defp blocker_relation(project_id) do
+    %{
+      "issue_id" => @other_issue,
+      "project_id" => project_id
+    }
+  end
+
   defp raw do
     %{
       "id" => @issue,
@@ -579,6 +684,30 @@ defmodule SymphonyElixir.PlaneTest do
     Req.Test.expect(__MODULE__, fn conn ->
       assert conn.method == "GET"
       assert String.ends_with?(conn.request_path, "/work-items/#{@issue}/")
+      conn = Plug.Conn.fetch_query_params(conn)
+      assert conn.query_params["expand"] == "state,labels"
+      Req.Test.json(conn, row)
+    end)
+  end
+
+  defp expect_relations(issue_id \\ @issue, project_id \\ @project, blockers \\ []) do
+    Req.Test.expect(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+
+      assert conn.request_path ==
+               "/api/v1/workspaces/switchyard/projects/#{project_id}/work-items/#{issue_id}/relations/"
+
+      Req.Test.json(conn, %{"blocked_by" => blockers})
+    end)
+  end
+
+  defp expect_project_issue(issue_id, project_id, row) do
+    Req.Test.expect(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+
+      assert conn.request_path ==
+               "/api/v1/workspaces/switchyard/projects/#{project_id}/work-items/#{issue_id}/"
+
       conn = Plug.Conn.fetch_query_params(conn)
       assert conn.query_params["expand"] == "state,labels"
       Req.Test.json(conn, row)

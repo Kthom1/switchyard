@@ -6,6 +6,7 @@ defmodule SymphonyElixir.Plane do
   """
 
   @behaviour SymphonyElixir.Tracker
+  require Logger
   alias SymphonyElixir.{Config, Tracker.Issue}
   alias SymphonyElixir.Config.Schema
 
@@ -51,8 +52,9 @@ defmodule SymphonyElixir.Plane do
   def fetch_issues_by_states(states) do
     tracker = Config.settings!().tracker
 
-    with :ok <- validate_config(tracker) do
-      fetch_project_states(project_trackers(tracker), states)
+    with :ok <- validate_config(tracker),
+         {:ok, issues} <- fetch_project_states(project_trackers(tracker), states) do
+      enrich_dependencies(issues, tracker, :hold)
     end
   end
 
@@ -71,8 +73,9 @@ defmodule SymphonyElixir.Plane do
   def fetch_issues_by_ids(ids) do
     tracker = Config.settings!().tracker
 
-    with :ok <- validate_config(tracker) do
-      fetch_ids(tracker, Enum.uniq(ids))
+    with :ok <- validate_config(tracker),
+         {:ok, issues} <- fetch_ids(tracker, Enum.uniq(ids)) do
+      enrich_dependencies(issues, tracker, :error)
     end
   end
 
@@ -344,6 +347,95 @@ defmodule SymphonyElixir.Plane do
   # Legacy single-project callers did not need native_ref to select a project.
   defp tool_tracker(%{provider: provider} = tracker, _) do
     if Map.has_key?(provider, "projects"), do: {:error, :plane_issue_scope_mismatch}, else: {:ok, tracker}
+  end
+
+  defp enrich_dependencies(issues, tracker, error_mode) do
+    Enum.reduce_while(issues, {:ok, []}, fn issue, {:ok, acc} ->
+      case enrich_issue_dependencies(issue, tracker) do
+        {:ok, enriched} ->
+          {:cont, {:ok, [enriched | acc]}}
+
+        {:error, reason} when error_mode == :hold ->
+          Logger.warning("Plane dependency lookup failed; holding task issue_id=#{issue.id} issue_identifier=#{issue.identifier} reason=#{inspect(reason)}")
+
+          {:cont, {:ok, [%{issue | dispatchable: false} | acc]}}
+
+        error ->
+          {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, enriched} -> {:ok, Enum.reverse(enriched)}
+      error -> error
+    end
+  end
+
+  defp enrich_issue_dependencies(issue, tracker) do
+    if state_in?(issue.state, ["Todo"]) and Issue.routable?(issue, tracker.required_labels),
+      do: issue_dependencies(issue, tracker),
+      else: {:ok, issue}
+  end
+
+  defp issue_dependencies(%Issue{native_ref: %{"project_id" => project_id}} = issue, tracker) do
+    with {:ok, project} <- tracker_for_project(tracker, project_id),
+         {:ok, relations} <- request(project, :get, "work-items/#{issue.id}/relations/", %{}),
+         {:ok, blockers} <- normalize_blockers(relations, tracker) do
+      {:ok,
+       %{
+         issue
+         | blocked_by: blockers,
+           dispatchable: issue.dispatchable and not blocked_before_dispatch?(issue.state, blockers, tracker.terminal_states)
+       }}
+    end
+  end
+
+  defp normalize_blockers(%{"blocked_by" => blockers}, tracker) when is_list(blockers) do
+    Enum.reduce_while(blockers, {:ok, []}, fn blocker, {:ok, acc} ->
+      case normalize_blocker(blocker, tracker) do
+        {:ok, normalized} -> {:cont, {:ok, [normalized | acc]}}
+        error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, normalized} -> {:ok, Enum.reverse(normalized)}
+      error -> error
+    end
+  end
+
+  defp normalize_blockers(_, _), do: {:error, :invalid_plane_issue_relations}
+
+  defp normalize_blocker(%{"issue_id" => id, "project_id" => project_id}, tracker) do
+    if uuid?(id) and uuid?(project_id) do
+      resolve_blocker(id, project_id, tracker)
+    else
+      {:error, :invalid_plane_issue_relations}
+    end
+  end
+
+  defp normalize_blocker(_, _), do: {:error, :invalid_plane_issue_relations}
+
+  defp resolve_blocker(id, project_id, tracker) do
+    case tracker_for_project(tracker, project_id) do
+      {:ok, project} ->
+        with {:ok, raw} <- request(project, :get, "work-items/#{id}/", %{"expand" => "state,labels"}),
+             {:ok, %Issue{id: ^id, native_ref: %{"project_id" => ^project_id}} = issue} <- normalize_issue(raw, tracker) do
+          {:ok, %{id: id, identifier: issue.identifier, state: issue.state}}
+        else
+          {:ok, _} -> {:error, :invalid_plane_issue_relations}
+          error -> error
+        end
+
+      {:error, :invalid_plane_issue} ->
+        {:ok, %{id: id, identifier: nil, state: nil}}
+    end
+  end
+
+  defp blocked_before_dispatch?(state, blockers, terminal_states) do
+    state_in?(state, ["Todo"]) and
+      Enum.any?(blockers, fn
+        %{state: blocker_state} when is_binary(blocker_state) -> not state_in?(blocker_state, terminal_states)
+        _ -> true
+      end)
   end
 
   defp state_in?(state, states), do: Enum.any?(states, &(Schema.normalize_issue_state(&1) == Schema.normalize_issue_state(state)))
