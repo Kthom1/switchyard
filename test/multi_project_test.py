@@ -1,4 +1,4 @@
-"""Opt-in real scheduler/Git acceptance, with simulated Plane and Codex app-server.
+"""Opt-in dependency, scheduler, and Git acceptance with simulated Plane and Codex.
 
 Run: python3 test/multi_project_test.py --runner /path/to/bin/symphony
 Add --previous-runner /path/to/older/bin/symphony to check a warm-cache upgrade.
@@ -22,7 +22,12 @@ import time
 
 PROJECTS = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"]
 ISSUES = ["33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444"]
-STATES = {"55555555-5555-4555-8555-555555555555": "In Progress", "66666666-6666-4666-8666-666666666666": "Human Review"}
+STATES = {
+    "88888888-8888-4888-8888-888888888888": "Todo",
+    "55555555-5555-4555-8555-555555555555": "In Progress",
+    "66666666-6666-4666-8666-666666666666": "Human Review",
+    "77777777-7777-4777-8777-777777777777": "Done",
+}
 
 
 def git(*args, cwd=None, env=None):
@@ -146,6 +151,7 @@ def check(runner, tmp, previous_runner=None):
     failures = []
     active = set()
     max_active = 0
+    dependency_released = False
     lock = threading.Lock()
 
     class Plane(BaseHTTPRequestHandler):
@@ -164,6 +170,11 @@ def check(runner, tmp, previous_runner=None):
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))) or b"{}")
                 if self.command == "GET" and resource == "work-items/":
                     result = [row]
+                elif self.command == "GET" and resource == f'work-items/{row["id"]}/relations/':
+                    if row["id"] == ISSUES[1]:
+                        result = {"blocked_by": [{"issue_id": ISSUES[0], "project_id": PROJECTS[0]}]}
+                    else:
+                        result = {"blocked_by": []}
                 elif self.command == "GET" and resource == "states/":
                     result = [{"id": key, "name": value} for key, value in STATES.items()]
                 elif resource == f'work-items/{row["id"]}/comments/':
@@ -183,7 +194,9 @@ def check(runner, tmp, previous_runner=None):
                             active.discard(row["id"])
                     else:
                         assert self.command == "GET"
-                    result = row
+                    result = dict(row)
+                    if dependency_released and row["id"] == ISSUES[0]:
+                        result["state"] = {"name": "Done"}
                 elif self.command == "GET" and re.fullmatch(r"work-items/[0-9a-f-]{36}/", resource):
                     # Looking up a raw UUID in another configured project is a valid miss.
                     self.send_response(404)
@@ -198,7 +211,7 @@ def check(runner, tmp, previous_runner=None):
                 self.end_headers()
                 self.wfile.write(data)
             except Exception as error:
-                failures.append(str(error))
+                failures.append(f"{self.command} {self.path}: {error!r}")
                 self.send_response(500)
                 self.end_headers()
 
@@ -255,14 +268,22 @@ Task UUID: {{{{ issue.id }}}}
                                        "--i-understand-that-this-will-be-running-without-the-usual-guardrails"],
                                       cwd=tmp, env=env, stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
             deadline = time.monotonic() + 90
+            release_at = None
             while time.monotonic() < deadline:
                 assert process.poll() is None, "Runner exited before completing both tasks"
                 assert not failures, failures
-                if events.exists() and events.read_text().count('"event": "finish"') == 2:
+                event_text = events.read_text() if events.exists() else ""
+                if rows[0]["state"]["name"] == "Human Review" and not dependency_released:
+                    assert event_text.count('"event": "start"') == 1, "Dependent task started before its blocker completed"
+                    release_at = release_at or time.monotonic() + 0.3
+                    if time.monotonic() >= release_at:
+                        dependency_released = True
+                if event_text.count('"event": "finish"') == 2:
                     break
                 time.sleep(0.1)
             else:
                 raise AssertionError("Timed out waiting for both projects to reach Human Review")
+            assert dependency_released
             assert [row["state"]["name"] for row in rows] == ["Human Review", "Human Review"]
             assert max_active == 1 and not active, "Shared concurrency budget was exceeded"
             concurrent = 0
@@ -284,7 +305,7 @@ Task UUID: {{{{ issue.id }}}}
         if previous_runner is not None:
             assert json.loads((new_cache / "_metadata.json").read_text())["app_version"] == new_metadata["app_version"]
             print("Warm-cache native upgrade selected and executed the new release successfully.")
-        print("Two projects, isolated Git branches/pushes, scoped comments, Human Review and shared concurrency passed (simulated Plane/Codex).")
+        print("Two projects, dependency gating, isolated Git branches/pushes, scoped comments, Human Review and shared concurrency passed (simulated Plane/Codex).")
     except Exception:
         print(log.read_text()[-12000:] if log.exists() else "Runner did not start", file=sys.stderr)
         raise

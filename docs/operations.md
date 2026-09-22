@@ -93,8 +93,16 @@ Marking a task Done does not guarantee immediate cleanup; Symphony also removes
 terminal task workspaces during startup.
 
 There is one shared runner, with one concurrent agent across all connected
-projects by default. Tasks must be independent; Plane blocking relationships
-are not interpreted.
+projects by default. A Todo task with Plane `blocked by` relationships waits
+until every blocker in a connected project reaches a configured terminal state.
+An unknown or unconnected blocker also holds the task. Moving the task to In
+Progress is the manual override. A relation lookup failure holds only the
+affected approved Todo task during queue polling, so independent work continues.
+Lifecycle refresh failures retain the existing worker, operator block or retry.
+
+This gate follows task state, not a Git revision. Record the exact prerequisite
+revision on the dependent task when its base matters, and verify that revision
+before dispatch.
 
 ## Projects and repositories
 
