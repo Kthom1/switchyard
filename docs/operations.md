@@ -93,7 +93,8 @@ Marking a task Done does not guarantee immediate cleanup; Symphony also removes
 terminal task workspaces during startup.
 
 There is one shared runner, with one concurrent agent across all connected
-projects by default. A Todo task with Plane `blocked by` relationships waits
+projects by default. The workflow's `active_states` must include Todo, the queue
+state. A Todo task with Plane `blocked by` relationships waits
 until every blocker in a connected project reaches a configured terminal state.
 An unknown or unconnected blocker also holds the task. Moving the task to In
 Progress is the manual override. A relation lookup failure holds only the

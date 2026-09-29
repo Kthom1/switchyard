@@ -93,8 +93,9 @@ Plane project maps to one repository; its tasks get separate checkouts of that
 repository. Add more projects with `switchyard project add --repo URL` and inspect
 the connections with `switchyard project list`.
 
-The default is **one agent at a time across all connected projects**. Tasks should
-be independent; Plane's blocking relationships do not control the runner.
+The default is **one agent at a time across all connected projects**. A queued task
+waits while any task it is **blocked by** is unfinished, and runs once its blockers
+are done.
 
 ## Guides
 

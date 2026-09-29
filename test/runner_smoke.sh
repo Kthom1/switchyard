@@ -20,6 +20,8 @@ tracker:
     project_identifier: SMOKE
     project_id: 00000000-0000-0000-0000-000000000001
     api_key: \$PLANE_API_KEY
+  active_states: [Todo, In Progress]
+  terminal_states: [Done, Cancelled]
 workspace:
   root: /tmp/tasks
 server:
