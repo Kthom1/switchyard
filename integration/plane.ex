@@ -18,6 +18,12 @@ defmodule SymphonyElixir.Plane do
   def validate_config(tracker) do
     p = tracker.provider
 
+    with :ok <- validate_states(tracker) do
+      validate_provider(tracker, p)
+    end
+  end
+
+  defp validate_provider(tracker, p) do
     cond do
       not endpoint?(p["endpoint"]) ->
         {:error, :invalid_plane_endpoint}
@@ -36,6 +42,16 @@ defmodule SymphonyElixir.Plane do
 
       true ->
         validate_projects(p)
+    end
+  end
+
+  # Blocker gating and the agent workflow start from the Todo queue state.
+  defp validate_states(tracker) do
+    cond do
+      not state_names?(tracker.active_states) -> {:error, :missing_plane_active_states}
+      not state_names?(tracker.terminal_states) -> {:error, :missing_plane_terminal_states}
+      not state_in?("Todo", tracker.active_states) -> {:error, :plane_active_states_must_include_todo}
+      true -> :ok
     end
   end
 
@@ -281,7 +297,7 @@ defmodule SymphonyElixir.Plane do
       not Enum.all?(projects, &valid_project_mapping?/1) ->
         {:error, :invalid_plane_projects}
 
-      duplicate_field?(projects, "project_id") or duplicate_field?(projects, "project_identifier") ->
+      duplicate_field?(Enum.map(projects, &canonical_project/1), "project_id") or duplicate_field?(projects, "project_identifier") ->
         {:error, :duplicate_plane_projects}
 
       true ->
@@ -308,6 +324,9 @@ defmodule SymphonyElixir.Plane do
     length(values) != length(Enum.uniq(values))
   end
 
+  # Plane state names are workspace-defined, so workflows must list them.
+  defp state_names?(states), do: is_list(states) and states != [] and Enum.all?(states, &(is_binary(&1) and String.trim(&1) != ""))
+
   defp repo_url?(value) when is_binary(value) do
     not Regex.match?(~r/[\s\p{C}]/u, value) and
       (Regex.match?(~r|\Agit@[A-Za-z0-9.-]+:[A-Za-z0-9_./-]+\z|, value) or
@@ -319,11 +338,14 @@ defmodule SymphonyElixir.Plane do
   defp project_trackers(%{provider: %{"projects" => projects} = provider} = tracker) do
     Enum.map(projects, fn project ->
       scoped = provider |> Map.delete("projects") |> Map.merge(Map.take(project, ["project_id", "project_identifier", "repo"]))
-      %{tracker | provider: scoped}
+      %{tracker | provider: canonical_project(scoped)}
     end)
   end
 
-  defp project_trackers(tracker), do: [tracker]
+  defp project_trackers(tracker), do: [%{tracker | provider: canonical_project(tracker.provider)}]
+
+  # Plane reports project UUIDs in lowercase; configured ones may use any case.
+  defp canonical_project(project), do: Map.replace_lazy(project, "project_id", &if(is_binary(&1), do: String.downcase(&1), else: &1))
 
   defp tracker_for_project(tracker, project_id) do
     case Enum.find(project_trackers(tracker), &(&1.provider["project_id"] == project_id)) do
@@ -346,7 +368,11 @@ defmodule SymphonyElixir.Plane do
 
   # Legacy single-project callers did not need native_ref to select a project.
   defp tool_tracker(%{provider: provider} = tracker, _) do
-    if Map.has_key?(provider, "projects"), do: {:error, :plane_issue_scope_mismatch}, else: {:ok, tracker}
+    if Map.has_key?(provider, "projects") do
+      {:error, :plane_issue_scope_mismatch}
+    else
+      {:ok, %{tracker | provider: canonical_project(provider)}}
+    end
   end
 
   defp enrich_dependencies(issues, tracker, error_mode) do

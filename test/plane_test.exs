@@ -510,6 +510,59 @@ defmodule SymphonyElixir.PlaneTest do
     assert {:error, :invalid_plane_issue} = Plane.normalize_issue(Map.put(raw(), "project", @issue), tracker)
   end
 
+  test "workflows must list Plane lifecycle states", %{tracker: t} do
+    for states <- [nil, [], [""], [" "], ["Todo", "\t"], [:todo]] do
+      assert {:error, :missing_plane_active_states} = Plane.validate_config(%{t | active_states: states})
+      assert {:error, :missing_plane_terminal_states} = Plane.validate_config(%{t | terminal_states: states})
+    end
+
+    assert {:error, :plane_active_states_must_include_todo} = Plane.validate_config(%{t | active_states: ["Ready", "In Progress"]})
+    assert :ok = Plane.validate_config(%{t | active_states: [" todo ", "In Progress"]})
+  end
+
+  test "legacy single-project tool calls use the lowercase project UUID", %{tracker: t} do
+    lettered = "abcdef12-3456-4abc-8def-0123456789ab"
+    tracker = put_in(t, [Access.key!(:provider), "project_id"], String.upcase(lettered))
+
+    Req.Test.expect(__MODULE__, fn conn ->
+      assert conn.request_path == "/api/v1/workspaces/switchyard/projects/#{lettered}/work-items/#{@issue}/"
+      Req.Test.json(conn, Map.put(raw(), "project", lettered))
+    end)
+
+    Req.Test.expect(__MODULE__, fn conn ->
+      assert conn.request_path == "/api/v1/workspaces/switchyard/projects/#{lettered}/work-items/#{@issue}/comments/"
+      Req.Test.json(conn, %{"results" => [], "next_page_results" => false})
+    end)
+
+    assert tool(tracker, %{"action" => "read"})["success"]
+  end
+
+  test "configured project UUIDs match Plane's lowercase identifiers in any case", %{tracker: legacy} do
+    lettered = "abcdef12-3456-4abc-8def-0123456789ab"
+    [first, second] = multi_tracker(legacy).provider["projects"]
+    configured = %{first | "project_id" => String.upcase(lettered)}
+    tracker = put_in(multi_tracker(legacy), [Access.key!(:provider), "projects"], [configured, second])
+    install_tracker(tracker)
+    assert :ok = Plane.validate_config(tracker)
+
+    Req.Test.expect(__MODULE__, fn conn ->
+      assert conn.request_path == "/api/v1/workspaces/switchyard/projects/#{lettered}/work-items/"
+      Req.Test.json(conn, [Map.put(raw(), "project", lettered)])
+    end)
+
+    Req.Test.expect(__MODULE__, fn conn ->
+      assert conn.request_path == "/api/v1/workspaces/switchyard/projects/#{@other_project}/work-items/"
+      Req.Test.json(conn, [])
+    end)
+
+    expect_relations(@issue, lettered)
+    assert {:ok, [issue]} = Plane.fetch_issues_by_states(["Todo"])
+    assert issue.native_ref["project_id"] == lettered
+
+    variant = %{configured | "project_id" => lettered, "project_identifier" => "OTHER"}
+    assert {:error, :duplicate_plane_projects} = Plane.validate_config(put_in(tracker, [Access.key!(:provider), "projects"], [configured, variant]))
+  end
+
   test "mapped project refresh searches configured scopes and exposes moves to lifecycle reconciliation", %{tracker: legacy} do
     install_tracker(multi_tracker(legacy))
 
