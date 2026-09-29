@@ -5,7 +5,8 @@
 Run Switchyard on a private **Linux x86-64** machine with:
 
 - Docker Engine and Docker Compose 2.24.4 or later, accessible to your user.
-- Git, GitHub CLI (`gh`), Codex CLI and Bash.
+- Git, GitHub CLI (`gh`) and Bash.
+- Codex CLI, unless you run [another coding agent](agents.md) such as Claude Code.
 - A systemd user session.
 - The build and test tools needed by your repositories.
 

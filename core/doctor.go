@@ -9,7 +9,7 @@ import (
 
 func prerequisites() error {
 	var missing []string
-	for _, tool := range []string{"bash", "docker", "git", "gh", "codex", "systemctl", "journalctl"} {
+	for _, tool := range []string{"bash", "docker", "git", "gh", "systemctl", "journalctl"} {
 		if _, err := exec.LookPath(tool); err != nil {
 			missing = append(missing, tool)
 		}

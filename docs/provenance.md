@@ -10,8 +10,12 @@ Switchyard uses [OpenAI Symphony](https://github.com/openai/symphony) at commit
 - `patches/project-routing.patch` passes trusted repository and task identities
   to workspace hooks, stops runs whose target changes, and checks identity before cleanup.
 - `patches/dependencies.patch` pins Ecto 3.13.6, Solid 1.3.3 and Decimal 3.1.1.
-- `scripts/build` registers the Plane adapter and copies its implementation and tests
-  into the assembled runtime under `work/symphony`.
+- `patches/acp-agent.patch` adds the optional `acp` settings and routes agent runs
+  through `SymphonyElixir.AgentSession`, which selects Codex or an ACP agent.
+- `scripts/build` registers the Plane adapter and copies the integration modules and
+  tests into the assembled runtime under `work/symphony`.
+- `scripts/claude-runner install` installs `@agentclientprotocol/claude-agent-acp`
+  0.84.0 under `work/acp` for the optional [Claude Code agent](agents.md).
 
 Decimal 3.1.1 includes the fix described in the maintainer's
 [GHSA-rhv4-8758-jx7v advisory](https://github.com/ericmj/decimal/security/advisories/GHSA-rhv4-8758-jx7v).

@@ -37,6 +37,8 @@ codex:
     networkAccess: true
   stall_timeout_ms: 300000
   turn_timeout_ms: 600000
+# To run Claude Code or another ACP agent instead of Codex, add an acp block.
+# See docs/agents.md.
 server:
   host: 127.0.0.1
   port: 8091

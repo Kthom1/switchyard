@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd -P)
+runner_home=${SWITCHYARD_CLAUDE_HOME:-$root/work/claude}
+[[ $runner_home = /* ]] || { echo 'SWITCHYARD_CLAUDE_HOME must be absolute.' >&2; exit 1; }
+adapter_version=0.84.0
+adapter=$root/work/acp/node_modules
+(umask 077 && mkdir -p "$runner_home")
+# A separate Claude home keeps personal settings, MCP servers, plugins and hooks out.
+export CLAUDE_CONFIG_DIR="$runner_home"
+case "${1:-}" in
+  install)
+    exec npm install --prefix "$root/work/acp" --no-fund --no-audit --save-exact \
+      "@agentclientprotocol/claude-agent-acp@$adapter_version"
+    ;;
+esac
+[[ -x $adapter/.bin/claude-agent-acp ]] || { echo 'Run scripts/claude-runner install first.' >&2; exit 1; }
+if [[ ${1:-} = acp ]]; then
+  # Task runs speak ACP on stdio inside the sandbox; the Claude home stays writable for sign-in refresh.
+  exec "$root/scripts/agent-sandbox" --writable "$runner_home" -- "$adapter/.bin/claude-agent-acp"
+fi
+# Anything else opens the adapter's bundled Claude Code with the runner home, e.g. to sign in.
+exec "$adapter/@anthropic-ai/claude-agent-sdk-linux-x64/claude" "$@"
