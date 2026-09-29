@@ -4,12 +4,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 binary=$(realpath "${1:?Usage: test/runner_smoke.sh path/to/bin/symphony}")
 docker run --rm --network none --read-only --tmpfs /tmp:exec -e HOME=/tmp -e PLANE_API_KEY=unused \
-  -e SYMPHONY_INSTALL_DIR=/tmp/symphony -v "$binary:/symphony:ro" ubuntu:24.04 bash -euc '
+  -e YARDMASTER_INSTALL_DIR=/tmp/yardmaster -v "$binary:/symphony:ro" ubuntu:24.04 bash -euc '
 for tool in mise elixir erl; do
   if command -v "$tool"; then echo "Unexpected toolchain: $tool" >&2; exit 1; fi
 done
 if /symphony > /tmp/ack.log 2>&1; then exit 1; fi
-grep -q "This Symphony implementation is a low key engineering preview" /tmp/ack.log
+grep -q "Yardmaster is early software for trusted environments" /tmp/ack.log
 cat > /tmp/WORKFLOW.md <<WORKFLOW
 ---
 tracker:

@@ -1,7 +1,8 @@
 # Switchyard
 
-Plane owns tasks and durable progress. Symphony owns scheduling, retries, isolated
-workspaces, and the dashboard. Add only the adapter and deployment glue here.
+Plane owns tasks and durable progress. Yardmaster owns scheduling, retries, isolated
+workspaces, and the dashboard. Add only Switchyard-specific patches and deployment
+glue here; general runner changes belong in Yardmaster, then a gitlink update.
 
 - Read the closest upstream implementation before changing an integration.
 - Do not build another scheduler, task database, or dashboard.

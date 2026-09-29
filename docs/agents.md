@@ -9,15 +9,15 @@ same. Only the agent process changes.
 
 ## How it works
 
-When `acp.command` is set in `WORKFLOW.md`, Symphony starts that command in the
+When `acp.command` is set in `WORKFLOW.md`, the runner starts that command in the
 task checkout and talks ACP (version 1) over its standard input and output. Each
 worker opens one ACP session; continuation turns reuse it.
 
 - **Task tool.** The `plane` tool reaches the agent as an MCP server. It relays
-  each call back to Symphony over a private socket, so the Plane token stays on
+  each call back to the runner over a private socket, so the Plane token stays on
   the host, as with Codex. The relay needs Python 3 (`python3`) on the host.
 - **Permissions.** Runs are unattended. The agent should use a mode that does not
-  ask for permission. If it still asks, Symphony allows that one action and never
+  ask for permission. If it still asks, the runner allows that one action and never
   saves a rule.
 - **Sandbox.** ACP does not define one. `scripts/agent-sandbox` runs the agent
   with the machine read-only, except the task checkout, `/tmp` and paths you name.
@@ -92,7 +92,7 @@ and is retried like other failures.
 
 - ACP agents run on the local machine. SSH worker hosts support only Codex.
 - Token totals on the dashboard come from usage reported when a turn finishes.
-  Symphony stops the agent as soon as it moves a task to Human Review, usually
+  The runner stops the agent as soon as it moves a task to Human Review, usually
   before that report, so ACP runs often show no totals. ACP has not yet
   standardized these numbers.
 - Some adapters ignore MCP servers. The Pi adapter does, so Pi cannot use the

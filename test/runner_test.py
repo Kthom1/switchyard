@@ -15,13 +15,17 @@ with tempfile.TemporaryDirectory() as temporary:
     (root / "WORKFLOW.md").write_text("test workflow")
     env = root / ".env"
     task_root = Path(temporary) / "tasks"
-    env.write_text(f"SYMPHONY_WORKSPACE_ROOT='{task_root}'\nPLANE_API_KEY=host-only\n")
+    env.write_text(f"SYMPHONY_WORKSPACE_ROOT='{task_root}'\nPLANE_API_KEY=host-only\nSYMPHONY_INSTALL_DIR=/legacy/runtime\n")
     binary = root / "bin/symphony"
-    binary.write_text('#!/usr/bin/env python3\nimport json,os,sys\nprint(json.dumps({"root":os.environ["SWITCHYARD_ROOT"],"key":os.environ["PLANE_API_KEY"],"args":sys.argv[1:]}))\n')
+    binary.write_text('#!/usr/bin/env python3\nimport json,os,sys\nprint(json.dumps({"root":os.environ["SWITCHYARD_ROOT"],"key":os.environ["PLANE_API_KEY"],"install":os.environ.get("YARDMASTER_INSTALL_DIR"),"args":sys.argv[1:]}))\n')
     binary.chmod(0o700)
     result = json.loads(subprocess.check_output([root / "scripts/run"], text=True))
     assert result["root"] == str(root)
     assert result["key"] == "host-only"
+    assert result["install"] == "/legacy/runtime"
+    with env.open("a") as file:
+        file.write("YARDMASTER_INSTALL_DIR=/current/runtime\n")
+    assert json.loads(subprocess.check_output([root / "scripts/run"], text=True))["install"] == "/current/runtime"
     assert result["args"] == [str(root / "WORKFLOW.md"), "--logs-root", str(root / "work/log"),
                               "--i-understand-that-this-will-be-running-without-the-usual-guardrails"]
     assert task_root.is_dir()

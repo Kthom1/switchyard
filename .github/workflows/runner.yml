@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - 'integration/**'
       - 'patches/**'
-      - 'vendor/symphony'
+      - 'vendor/yardmaster'
       - 'scripts/**'
       - 'test/runner*'
       - '**/*.go'
@@ -30,7 +29,7 @@ jobs:
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
         with:
           version: 2026.9.2
-          working_directory: vendor/symphony/elixir
+          working_directory: vendor/yardmaster/elixir
       - name: Check the Go CLI
         run: |
           mise install go@1.27.1

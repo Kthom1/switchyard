@@ -208,7 +208,7 @@ once you have confirmed its identity.
 Review the restored host URL, repository/workspace paths, and runner tool settings.
 On the replacement machine, keep the same origin. For a separate recovery drill,
 change the origin and use an unused loopback port in the local Compose override
-before starting Plane; the default proxy binds port 8090. Keep the Symphony
+before starting Plane; the default proxy binds port 8090. Keep the runner
 service stopped throughout the drill.
 
 ```bash

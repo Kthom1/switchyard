@@ -1,19 +1,20 @@
 # Source and dependency versions
 
-Switchyard uses [OpenAI Symphony](https://github.com/openai/symphony) at commit
-`8001b52e3062495a16e520e4ceaf8f9de868c4d0`. The source is included under
-`vendor/symphony`, along with its Apache-2.0 LICENSE and NOTICE.
+Switchyard's runner is [Yardmaster](https://github.com/Kthom1/yardmaster), a
+modified [OpenAI Symphony](https://github.com/openai/symphony), at commit
+`0303190df33992fcb2226779c722534116d09ec8`. The source is included under
+`vendor/yardmaster`, along with its Apache-2.0 LICENSE and its NOTICE, which keeps
+OpenAI's notice. Yardmaster provides the Plane adapter, Agent Client Protocol
+agents, the agent sandbox, turn-event correlation, the task Git directory policy and
+patched Ecto, Solid and Decimal releases.
 
 ## Local integration
 
-- `patches/workspace-git.patch` resolves the task-specific writable Git directory.
 - `patches/project-routing.patch` passes trusted repository and task identities
-  to workspace hooks, stops runs whose target changes, and checks identity before cleanup.
-- `patches/dependencies.patch` pins Ecto 3.13.6, Solid 1.3.3 and Decimal 3.1.1.
-- `patches/acp-agent.patch` adds the optional `acp` settings and routes agent runs
-  through `SymphonyElixir.AgentSession`, which selects Codex or an ACP agent.
-- `scripts/build` registers the Plane adapter and copies the integration modules and
-  tests into the assembled runtime under `work/symphony`.
+  to workspace hooks, stops runs whose target changes, and checks identity before
+  cleanup with Switchyard's `scripts/task-workspace`.
+- `scripts/build` applies that patch and copies Switchyard's tests into the
+  assembled runtime under `work/yardmaster`.
 - `scripts/claude-runner install` installs `@agentclientprotocol/claude-agent-acp`
   0.84.0 under `work/acp` for the optional [Claude Code agent](agents.md).
 
@@ -46,26 +47,29 @@ before changing image versions.
 
 Run `scripts/package` from a clean, committed checkout with the submodule initialized.
 It writes a source archive and SHA-256 checksum under `work/dist/`. The archive
-contains tracked files and the pinned Symphony source, including their licenses.
+contains tracked files and the pinned Yardmaster source, including their licenses.
 Local configuration, task workspaces, logs and Git metadata are excluded.
 
 Extract the archive into a new directory and follow the [source-build
-steps](getting-started.md). `scripts/build` uses the included Symphony source without requiring Git
+steps](getting-started.md). `scripts/build` uses the included Yardmaster source without requiring Git
 metadata. Contributors can also use a recursive Git clone.
 
 ## Linux runner archives
 
-`scripts/build-runner` packages the assembled Switchyard adapter and patches
-with the upstream Burrito release configuration. The Linux x86-64 executable
+`scripts/build-runner` packages the assembled runtime with Yardmaster's Burrito
+release configuration and installs it as `bin/symphony`, the path the CLI and
+existing installations use. The Linux x86-64 executable
 includes Erlang/OTP and Elixir. `BUILD.txt` records the source revisions and
 build versions; `licenses/` contains the dependency lockfile and notices. The
-archive also includes the corresponding Switchyard and pinned Symphony source.
+archive also includes the corresponding Switchyard and pinned Yardmaster source.
 
 The runner archive is an intermediate build artifact. `scripts/build-cli` adds
 the Go CLI to produce the complete [installation bundle](cli.md). Git, GitHub CLI,
 Codex, credentials and your repository's build tools remain host prerequisites. Plane still runs
 in Docker. Burrito extracts its runtime to a user cache on first launch; that
-location must permit execution. `SYMPHONY_INSTALL_DIR` can select another path.
+location must permit execution. `YARDMASTER_INSTALL_DIR` can select another path.
+Runtimes extracted by runners built before Yardmaster stay under `symphony_*` in that
+cache and can be removed once no older runner is in use.
 Each native build uses release version `0.1.0+FULL_GIT_COMMIT`, recorded in
 `BUILD.txt`, so Burrito selects the runtime belonging to that source revision.
 To verify an upgrade with a previous runtime already cached, run:

@@ -112,11 +112,11 @@ def check(runner, tmp, previous_runner=None):
            "GIT_SSH_COMMAND": shlex.join([sys.executable, str(Path(__file__).resolve()), "--git-ssh"]),
            "GIT_SSH_VARIANT": "ssh", "SWITCHYARD_TEST_REPOS": json.dumps(list(map(str, repos))),
            "SWITCHYARD_TEST_EVENTS": str(events), "SWITCHYARD_ROOT": str(source),
-           "SYMPHONY_WORKSPACE_ROOT": str(workspaces), "SYMPHONY_INSTALL_DIR": str(tmp / "runtime"),
+           "SYMPHONY_WORKSPACE_ROOT": str(workspaces), "YARDMASTER_INSTALL_DIR": str(tmp / "runtime"),
            "PLANE_API_KEY": "synthetic-acceptance-key"}
     if previous_runner is not None:
         # Exercise Burrito's normal per-user cache with the same private HOME for both binaries.
-        env.pop("SYMPHONY_INSTALL_DIR")
+        env.pop("YARDMASTER_INSTALL_DIR")
 
         def native_info(binary, action):
             result = subprocess.run([str(binary), "maintenance", action], cwd=tmp, env=env,

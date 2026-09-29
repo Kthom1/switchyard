@@ -3,7 +3,7 @@
 [← Switchyard](../README.md) · [Install the CLI](cli.md) · [Contributing](../CONTRIBUTING.md)
 
 To install Switchyard, use the [packaged CLI](cli.md). Building from source is
-for contributors who want to change Switchyard or its Symphony integration.
+for contributors who want to change Switchyard or its Yardmaster integration.
 
 Use Linux x86-64 with Go 1.25+, Bash, Python 3.10+, Git, rsync, patch, curl, xz
 and [mise](https://mise.jdx.dev/getting-started.html). Building from source needs host Python;
@@ -13,7 +13,7 @@ installing the packaged CLI does not. On Ubuntu, the native toolchain also needs
 ```bash
 git clone --recurse-submodules https://github.com/Kthom1/switchyard.git
 cd switchyard
-cd vendor/symphony/elixir
+cd vendor/yardmaster/elixir
 mise trust
 mise install
 cd ../../..

@@ -8,14 +8,27 @@ Follow [Getting started](docs/getting-started.md) to install the host tools,
 including the pinned Elixir/Erlang toolchain. You can build and run the checks
 without configuring Plane or signing in to Codex.
 
-`vendor/symphony` is pinned upstream source. `scripts/build` assembles generated
-source in ignored `work/symphony`, removes stale source while preserving build
-caches, applies explicit patches, and registers/copies the Plane adapter and tests.
-The vendor checkout stays unchanged. Patches fail when their expected source moves.
+`vendor/yardmaster` is the pinned [Yardmaster](https://github.com/Kthom1/yardmaster)
+source. `scripts/build` assembles generated source in ignored `work/yardmaster`,
+removes stale source while preserving build caches, applies Switchyard's patches
+and copies its tests. The vendor checkout stays unchanged. Patches fail when their
+expected source moves.
 
-Change the adapter in `integration/`, tests in `test/` and patches in `patches/`.
-Do not edit generated files in `work/symphony`; the next build replaces them.
-Read the closest upstream implementation before changing an integration.
+Make general runner changes, such as the Plane adapter, ACP agents or scheduling,
+in Yardmaster. After they merge there, move the `vendor/yardmaster` gitlink to the
+new commit here and update [provenance](docs/provenance.md). Keep only
+Switchyard-specific runtime changes as patches in `patches/`, with their tests in
+`test/`. Do not edit generated files in `work/yardmaster`; the next build replaces
+them. Read the closest upstream implementation before changing an integration.
+
+Checkouts made before the runner moved to Yardmaster still hold the retired
+`vendor/symphony` submodule as untracked files, which stops packaging. Once
+`git -C vendor/symphony status` shows no local changes you need, remove it:
+
+```bash
+rm -rf vendor/symphony .git/modules/vendor/symphony
+git submodule update --init
+```
 
 In a fresh checkout, run `scripts/build` before `scripts/check` to initialize
 the submodule and install locked dependencies:
@@ -49,7 +62,7 @@ From the repository root, after building:
 ```bash
 scripts/check
 bash test/log_redaction.sh
-cd work/symphony/elixir
+cd work/yardmaster/elixir
 mise exec -- mix format --check-formatted
 mise exec -- mix lint
 unshare --user --map-root-user --net sh -c \
@@ -61,8 +74,8 @@ To exercise dispatch into two repositories, build the assembled executable and
 run the acceptance check from the repository root:
 
 ```bash
-(cd work/symphony/elixir && mise exec -- mix escript.build)
-python3 test/multi_project_test.py --runner work/symphony/elixir/bin/symphony
+(cd work/yardmaster/elixir && mise exec -- mix escript.build)
+python3 test/multi_project_test.py --runner work/yardmaster/elixir/bin/yardmaster
 ```
 
 This uses the real scheduler, workspace hooks and Git operations with temporary
@@ -86,7 +99,7 @@ On Linux x86-64, commit your changes and run:
 
 ```bash
 scripts/build-runner
-bash test/runner_smoke.sh work/symphony/elixir/burrito_out/symphony_linux_x86_64
+bash test/runner_smoke.sh work/yardmaster/elixir/burrito_out/yardmaster_linux_x86_64
 ```
 
 The build uses the same assembled adapter and patches, the locked production

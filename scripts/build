@@ -6,24 +6,18 @@ if [[ $# -gt 1 || ( $# -eq 1 && "$1" != --assemble-only ) ]]; then
   exit 2
 fi
 if [[ -e .git ]]; then git submodule update --init; fi
-mkdir -p work/symphony
+if [[ -e vendor/symphony ]]; then
+  echo 'vendor/symphony is no longer used and blocks packaging; see CONTRIBUTING.md to remove it.' >&2
+fi
+mkdir -p work/yardmaster
 # Delete removed source files; rsync exclusions preserve dependency/build caches and the generated executable.
-rsync -a --delete --exclude=.git --exclude=deps --exclude=_build --exclude=/elixir/bin/ vendor/symphony/ work/symphony/
-python3 - <<'REGISTER'
-from pathlib import Path
-p = Path("work/symphony/elixir/lib/symphony_elixir/tracker.ex")
-text = p.read_text()
-needle = '  @adapters %{'
-assert text.count(needle) == 1, "Upstream tracker registration boundary changed"
-p.write_text(text.replace(needle, needle + '\n    "plane" => SymphonyElixir.Plane,'))
-REGISTER
+rsync -a --delete --exclude=.git --exclude=deps --exclude=_build --exclude=/elixir/bin/ vendor/yardmaster/ work/yardmaster/
 for change in patches/*.patch; do
-  patch --batch -d work/symphony -p1 < "$change"
+  patch --batch -d work/yardmaster -p1 < "$change"
 done
-cp integration/*.ex work/symphony/elixir/lib/symphony_elixir/
-cp test/*.exs work/symphony/elixir/test/symphony_elixir/
+cp test/*.exs work/yardmaster/elixir/test/symphony_elixir/
 if [[ "${1:-}" == --assemble-only ]]; then exit 0; fi
-cd work/symphony/elixir
+cd work/yardmaster/elixir
 mise trust
 mise exec -- mix local.hex --force --if-missing
 mise exec -- mix local.rebar --force --if-missing
