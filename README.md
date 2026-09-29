@@ -115,8 +115,8 @@ are done.
 Built with [Plane](https://github.com/makeplane/plane) (AGPL-3.0) and
 [Yardmaster](https://github.com/Kthom1/yardmaster) (Apache-2.0), a modified
 [OpenAI Symphony](https://github.com/openai/symphony). Yardmaster's
-[LICENSE](https://github.com/Kthom1/yardmaster/blob/0303190df33992fcb2226779c722534116d09ec8/LICENSE) and
-[NOTICE](https://github.com/Kthom1/yardmaster/blob/0303190df33992fcb2226779c722534116d09ec8/NOTICE), including
+[LICENSE](https://github.com/Kthom1/yardmaster/blob/80f319617d041d29d422d0716380fbec66c5f7b4/LICENSE) and
+[NOTICE](https://github.com/Kthom1/yardmaster/blob/80f319617d041d29d422d0716380fbec66c5f7b4/NOTICE), including
 OpenAI's notice, are included with its source. Switchyard's integration and deployment files are
 [AGPL-3.0](LICENSE). See [source and dependency versions](docs/provenance.md) for
 the pinned sources, images and local patches.

@@ -2,11 +2,11 @@
 
 Switchyard's runner is [Yardmaster](https://github.com/Kthom1/yardmaster), a
 modified [OpenAI Symphony](https://github.com/openai/symphony), at commit
-`0303190df33992fcb2226779c722534116d09ec8`. The source is included under
+`80f319617d041d29d422d0716380fbec66c5f7b4`. The source is included under
 `vendor/yardmaster`, along with its Apache-2.0 LICENSE and its NOTICE, which keeps
 OpenAI's notice. Yardmaster provides the Plane adapter, Agent Client Protocol
 agents, the agent sandbox, turn-event correlation, the task Git directory policy and
-patched Ecto, Solid and Decimal releases.
+patched Ecto, Solid, Decimal and Mint releases.
 
 ## Local integration
 
