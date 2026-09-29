@@ -102,6 +102,13 @@ def check(cli, tmp):
         assert status == 200, f"Unexpected HTTP {status} from {path}"
         return json.loads(body)
 
+    def task_data(opener, path, headers):
+        # Plane updates derived fields and timestamps asynchronously; compare what users own.
+        task = get_json(opener, path, headers)
+        return {field: task.get(field) for field in (
+            "id", "name", "description_html", "state", "project", "sequence_id",
+            "priority", "labels", "assignees", "parent", "start_date", "target_date")}
+
     def login(settings):
         browser = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         csrf = get_json(browser, "/auth/get-csrf-token/")["csrf_token"]
@@ -209,7 +216,7 @@ print(json.dumps({{model.__name__: list(model.objects.order_by('id').values_list
         assert status == 201, f"Task creation failed with HTTP {status}"
         task = json.loads(body)
         task_path = base + "work-items/" + task["id"] + "/"
-        task_before = get_json(plain, task_path, headers)
+        task_before = task_data(plain, task_path, headers)
         add = [cli, "project", "add", "--repo", "https://github.com/example/second"]
         added = run(add, env)
         no_secrets(added, settings)
@@ -222,7 +229,7 @@ print(json.dumps({{model.__name__: list(model.objects.order_by('id').values_list
         multi_state = database_state(second_settings)
         assert len(multi_state["Workspace"]) == 1 and len(multi_state["Project"]) == 2
         assert len(multi_state["User"]) == 2 and len(multi_state["APIToken"]) == 1
-        assert get_json(plain, task_path, headers) == task_before, "Adding a project changed existing task data"
+        assert task_data(plain, task_path, headers) == task_before, "Adding a project changed existing task data"
         for name in files[:-1]:
             assert (root / name).read_bytes() == saved[name], "Adding a project changed shared credentials"
         multi_workflow = (root / "WORKFLOW.md").read_bytes()
@@ -237,7 +244,7 @@ print(json.dumps({{model.__name__: list(model.objects.order_by('id').values_list
             no_secrets(result, settings)
         assert (root / "WORKFLOW.md").read_bytes() == multi_workflow
         assert database_state(second_settings) == multi_state and public_api(second_settings) == second_api
-        assert get_json(plain, task_path, headers) == task_before
+        assert task_data(plain, task_path, headers) == task_before
         login(settings)
         saved["WORKFLOW.md"] = multi_workflow
         db_state = multi_state
@@ -286,7 +293,7 @@ with transaction.atomic():
         assert (root / "WORKFLOW.md").read_bytes() == saved["WORKFLOW.md"]
         assert database_state(settings) == legacy_state
         (root / "plane.json").write_bytes(saved["plane.json"])
-        assert get_json(plain, task_path, {"X-API-Key": legacy_key}) == task_before
+        assert task_data(plain, task_path, {"X-API-Key": legacy_key}) == task_before
         api_state = public_api(settings)
         login(settings)
         db_state = legacy_state
