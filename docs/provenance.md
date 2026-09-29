@@ -26,11 +26,13 @@ The base Compose file comes from Plane's v1.4.2 release.
 | Postgres | `postgres:15.7-alpine` |
 | Valkey | `valkey/valkey:7.2.11-alpine` |
 | RabbitMQ | `rabbitmq:3.13.6-management-alpine` |
-| MinIO | `quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e` |
+| MinIO | `docker.io/pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372` |
 
 `scripts/plane` applies both the base configuration and `deploy/compose.override.yml`.
 The override pins MinIO by digest, binds the proxy to loopback and redacts API keys
-from proxy logs. Other images use version tags.
+from proxy logs. Other images use version tags. MinIO no longer publishes pullable
+images, so the pin follows Plane in using the community `pgsty/minio`
+RELEASE.2026-08-04T00-00-00Z build.
 
 Run `scripts/plane config --images` to see the selected images for your installation.
 Each backup also records that list. See the [backup and restore guide](backup.md)
