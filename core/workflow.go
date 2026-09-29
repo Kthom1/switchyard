@@ -63,6 +63,12 @@ func readWorkflow(path string) (*workflow, error) {
 	}
 }
 
+// usesACP reports whether the runner starts an ACP agent instead of Codex.
+func (w *workflow) usesACP() bool {
+	command := field(field(w.document.Content[0], "acp"), "command")
+	return command != nil && strings.TrimSpace(command.Value) != ""
+}
+
 func field(node *yaml.Node, name string) *yaml.Node {
 	if node != nil && node.Kind == yaml.MappingNode {
 		for i := 0; i < len(node.Content); i += 2 {

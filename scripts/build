@@ -20,7 +20,7 @@ REGISTER
 for change in patches/*.patch; do
   patch --batch -d work/symphony -p1 < "$change"
 done
-cp integration/plane.ex work/symphony/elixir/lib/symphony_elixir/plane.ex
+cp integration/*.ex work/symphony/elixir/lib/symphony_elixir/
 cp test/*.exs work/symphony/elixir/test/symphony_elixir/
 if [[ "${1:-}" == --assemble-only ]]; then exit 0; fi
 cd work/symphony/elixir

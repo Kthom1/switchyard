@@ -28,14 +28,17 @@ jobs:
           mise exec go@1.27.1 -- go build -o work/switchyard .
       - name: Build from the pinned upstream source
         run: scripts/build
+      - name: Permit agent sandboxes and offline network namespaces on this ephemeral runner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Check Switchyard configuration, hooks, and integration
         run: scripts/check
       - name: Check two-project scheduler routing with local fixtures
         run: |
           (cd work/symphony/elixir && mise exec -- mix escript.build)
           python3 test/multi_project_test.py --runner work/symphony/elixir/bin/symphony
-      - name: Permit offline network namespaces on this ephemeral runner
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Check the complete assembled runtime
         working-directory: work/symphony/elixir
         run: |

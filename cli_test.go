@@ -77,7 +77,7 @@ func TestLifecycle(t *testing.T) {
 	for _, name := range []string{"--repo", "--workspace", "--project-id", "--identifier", "--api-key-stdin"} {
 		run("flag provided but not defined", "init", name, "example")
 	}
-	run("install prerequisites first: bash, docker, git, gh, codex, systemctl, journalctl", "init")
+	run("install prerequisites first: bash, docker, git, gh, systemctl, journalctl", "init")
 	if _, err := os.Stat(root); !os.IsNotExist(err) {
 		t.Fatalf("missing prerequisites should leave no installation: %v", err)
 	}
@@ -115,6 +115,16 @@ fi
 `
 	for _, name := range []string{"docker", "systemctl", "gh", "codex", "journalctl"} {
 		write(filepath.Join(bin, name), stub, 0700)
+	}
+	if err := os.Rename(filepath.Join(bin, "codex"), filepath.Join(bin, "codex.off")); err != nil {
+		t.Fatal(err)
+	}
+	run("--recommended installs Codex plugins", "init", "--recommended")
+	if _, err := os.Stat(filepath.Join(root, "config.json")); !os.IsNotExist(err) {
+		t.Fatal("recommended setup without Codex must fail before initializing")
+	}
+	if err := os.Rename(filepath.Join(bin, "codex.off"), filepath.Join(bin, "codex")); err != nil {
+		t.Fatal(err)
 	}
 	runner := filepath.Join(base, "release/bin/symphony")
 	write(runner, "#!/bin/sh\nexit 0\n", 0700)

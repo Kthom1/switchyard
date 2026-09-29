@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -69,10 +70,17 @@ func initialize(a *core.Installation, args []string) error {
 	if err := a.Settings.Validate(); err != nil {
 		return err
 	}
+	// Recommended setup installs Codex plugins; installations running another agent skip it.
+	_, codexErr := exec.LookPath("codex")
+	if *recommended && codexErr != nil {
+		return errors.New("--recommended installs Codex plugins; install Codex first, or use --clean")
+	}
 	if err := a.Init(*runner); err != nil {
 		return err
 	}
-	if interactive {
+	if interactive && codexErr != nil {
+		fmt.Println("Codex is not installed, so the Recommended Codex plugins are skipped. See docs/agents.md to run another coding agent.")
+	} else if interactive {
 		var err error
 		*recommended, err = chooseSetup(bufio.NewReader(os.Stdin))
 		if err != nil {

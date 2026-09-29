@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -38,15 +39,29 @@ func (a Installation) Up() error {
 	if unitExists && string(existing) != unit {
 		return fmt.Errorf("service configuration differs at %s; stop the runner and remove that unit file to recreate it", path)
 	}
-	login := a.command(filepath.Join(a.Root, "scripts/codex-runner"), "login", "status")
-	if home != "" {
-		login.Env = append(login.Env, "CODEX_HOME="+home)
+	w, err := readWorkflow(filepath.Join(a.Root, "WORKFLOW.md"))
+	if err != nil {
+		return err
 	}
-	if err := login.Run(); err != nil {
-		if home != "" {
-			return fmt.Errorf("Codex is not signed in for CODEX_HOME %s; run codex login with that CODEX_HOME", home)
+	// ACP agents sign in through their own tools; see docs/agents.md.
+	if w.usesACP() {
+		if _, err := exec.LookPath("python3"); err != nil {
+			return errors.New("ACP agents need Python 3 for the tracker tool relay; install python3")
 		}
-		return errors.New("Codex is not signed in; run codex login (or switchyard codex login)")
+	} else {
+		if _, err := exec.LookPath("codex"); err != nil {
+			return errors.New("install Codex, or configure an ACP agent in WORKFLOW.md (see docs/agents.md)")
+		}
+		login := a.command(filepath.Join(a.Root, "scripts/codex-runner"), "login", "status")
+		if home != "" {
+			login.Env = append(login.Env, "CODEX_HOME="+home)
+		}
+		if err := login.Run(); err != nil {
+			if home != "" {
+				return fmt.Errorf("Codex is not signed in for CODEX_HOME %s; run codex login with that CODEX_HOME", home)
+			}
+			return errors.New("Codex is not signed in; run codex login (or switchyard codex login)")
+		}
 	}
 	if err := a.startBoard(); err != nil {
 		return err

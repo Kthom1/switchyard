@@ -85,7 +85,7 @@ default; the runner dashboard has no login. See [private access](docs/operations
 | --- | --- |
 | [Plane](https://github.com/makeplane/plane) | Your task board, descriptions, comments and review queue. |
 | [OpenAI Symphony](https://github.com/openai/symphony) | Schedules runs, manages task checkouts and retries, and serves the live dashboard. |
-| [Codex](https://developers.openai.com/codex/cli/) | Reads the task, edits code, runs checks and prepares a branch. |
+| [Codex](https://developers.openai.com/codex/cli/) | Reads the task, edits code, runs checks and prepares a branch. Claude Code and other [ACP agents](docs/agents.md) can take its place. |
 | Switchyard | Connects Plane to Symphony, supplies the task workflow and sets up the local services. |
 
 One installation runs one Plane board and one Symphony runner. Each connected
@@ -106,6 +106,7 @@ are done.
 | Run in the background, connect remotely or stop a task | [Operating guide](docs/operations.md) |
 | Add skills and plugins | [Recommended plugins and skills](docs/recommended.md) |
 | Orchestrate work with a conversational agent | [Switchyard skill](docs/recommended.md#install-the-switchyard-orchestration-skill) |
+| Use Claude Code or another coding agent | [Other coding agents](docs/agents.md) |
 | Back up or recover an installation | [Backup and restore](docs/backup.md) |
 | Change the integration and run its checks | [Contributing](CONTRIBUTING.md) |
 
