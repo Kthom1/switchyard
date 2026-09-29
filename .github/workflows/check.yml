@@ -19,7 +19,7 @@ jobs:
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
         with:
           version: 2026.9.2
-          working_directory: vendor/symphony/elixir
+          working_directory: vendor/yardmaster/elixir
       - name: Check the Go CLI
         run: |
           mise install go@1.27.1
@@ -37,10 +37,10 @@ jobs:
         run: scripts/check
       - name: Check two-project scheduler routing with local fixtures
         run: |
-          (cd work/symphony/elixir && mise exec -- mix escript.build)
-          python3 test/multi_project_test.py --runner work/symphony/elixir/bin/symphony
+          (cd work/yardmaster/elixir && mise exec -- mix escript.build)
+          python3 test/multi_project_test.py --runner work/yardmaster/elixir/bin/yardmaster
       - name: Check the complete assembled runtime
-        working-directory: work/symphony/elixir
+        working-directory: work/yardmaster/elixir
         run: |
           mise exec -- mix format --check-formatted
           mise exec -- mix lint

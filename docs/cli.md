@@ -18,7 +18,7 @@ Check your existing logins with `gh auth status` and `codex login status`.
 If needed, sign in with `gh auth login` and `codex login --device-auth`.
 Configure Git's `user.name` and `user.email` for commits. No separate GitHub
 account or Switchyard-specific Codex login is required.
-The release bundle includes the Symphony runner, Erlang/OTP and Elixir.
+The release bundle includes the Yardmaster runner (installed as `bin/symphony`), Erlang/OTP and Elixir.
 
 ## Install on your PATH
 

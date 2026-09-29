@@ -70,7 +70,7 @@ switchyard init
 `init` sets up the local Plane board, accounts and an unconnected starter project.
 Use `project add` to connect each repository afterward. The guide
 covers prerequisites, browser sign-in, connecting repositories and your first
-task. Docker runs the board; the bundle includes the native Symphony runner
+task. Docker runs the board; the bundle includes the native Yardmaster runner
 and its Elixir/Erlang runtime. The CLI requires a systemd user session.
 
 SSH and Tailscale are optional ways to connect from another computer.
@@ -84,11 +84,11 @@ default; the runner dashboard has no login. See [private access](docs/operations
 | Part | What it does |
 | --- | --- |
 | [Plane](https://github.com/makeplane/plane) | Your task board, descriptions, comments and review queue. |
-| [OpenAI Symphony](https://github.com/openai/symphony) | Schedules runs, manages task checkouts and retries, and serves the live dashboard. |
+| [Yardmaster](https://github.com/Kthom1/yardmaster) | Schedules runs, manages task checkouts and retries, and serves the live dashboard. A modified [OpenAI Symphony](https://github.com/openai/symphony). |
 | [Codex](https://developers.openai.com/codex/cli/) | Reads the task, edits code, runs checks and prepares a branch. Claude Code and other [ACP agents](docs/agents.md) can take its place. |
-| Switchyard | Connects Plane to Symphony, supplies the task workflow and sets up the local services. |
+| Switchyard | Connects Plane to Yardmaster, supplies the task workflow and sets up the local services. |
 
-One installation runs one Plane board and one Symphony runner. Each connected
+One installation runs one Plane board and one Yardmaster runner. Each connected
 Plane project maps to one repository; its tasks get separate checkouts of that
 repository. Add more projects with `switchyard project add --repo URL` and inspect
 the connections with `switchyard project list`.
@@ -113,8 +113,10 @@ are done.
 ## Credits and license
 
 Built with [Plane](https://github.com/makeplane/plane) (AGPL-3.0) and
-[OpenAI Symphony](https://github.com/openai/symphony) (Apache-2.0).
-Symphony's [LICENSE](https://github.com/openai/symphony/blob/8001b52e3062495a16e520e4ceaf8f9de868c4d0/LICENSE) and [NOTICE](https://github.com/openai/symphony/blob/8001b52e3062495a16e520e4ceaf8f9de868c4d0/NOTICE)
-are included with its source. Switchyard's integration and deployment files are
+[Yardmaster](https://github.com/Kthom1/yardmaster) (Apache-2.0), a modified
+[OpenAI Symphony](https://github.com/openai/symphony). Yardmaster's
+[LICENSE](https://github.com/Kthom1/yardmaster/blob/0303190df33992fcb2226779c722534116d09ec8/LICENSE) and
+[NOTICE](https://github.com/Kthom1/yardmaster/blob/0303190df33992fcb2226779c722534116d09ec8/NOTICE), including
+OpenAI's notice, are included with its source. Switchyard's integration and deployment files are
 [AGPL-3.0](LICENSE). See [source and dependency versions](docs/provenance.md) for
 the pinned sources, images and local patches.

@@ -89,7 +89,7 @@ independent stop, run `switchyard down`.
 The agent's Plane tool reads within its assigned project and can update only
 its assigned active task. A state change can race an
 in-flight request, so a write already underway may complete after you stop it.
-Marking a task Done does not guarantee immediate cleanup; Symphony also removes
+Marking a task Done does not guarantee immediate cleanup; the runner also removes
 terminal task workspaces during startup.
 
 There is one shared runner, with one concurrent agent across all connected
@@ -188,7 +188,7 @@ their normal behavior. See Codex's
 [configuration](https://developers.openai.com/codex/config-advanced/) and
 [authentication](https://developers.openai.com/codex/auth/) guides.
 
-Symphony removes the declared Plane token variable from the Codex child and runs
+The runner removes the declared Plane token variable from the Codex child and runs
 the bundled Plane tool on the host. That tool is scoped to the assigned project
 and task. Additional tools from your Codex configuration have their own access
 and may be broader. Codex runs as your Linux user; use trusted repositories and
