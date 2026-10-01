@@ -1,5 +1,5 @@
 [Unit]
-Description=Switchyard Plane task runner (OpenAI Symphony)
+Description=Switchyard Plane task runner (Yardmaster)
 After=network-online.target
 
 [Service]

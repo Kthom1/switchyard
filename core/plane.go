@@ -31,6 +31,10 @@ func (a Installation) boardInitialized() (bool, error) {
 }
 
 func (a Installation) startBoard() error {
+	// Every start of Plane goes through here, so a possible migration blocks all.
+	if err := a.checkMigrationBlock(); err != nil {
+		return err
+	}
 	if err := a.compose("up", "-d"); err != nil {
 		return err
 	}

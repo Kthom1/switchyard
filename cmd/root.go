@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"slices"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -22,6 +23,7 @@ Usage: switchyard <command> [options]
   down     Stop services; keep all data, configuration and task work
   backup   Stop writers and save database, attachments and configuration
   restore  Recover a trusted backup into an empty installation
+  upgrade  Move this installation to the release you run it from
   codex    Run your installed Codex with its existing configuration
   version  Print the build version
 
@@ -49,6 +51,11 @@ func Execute(args []string, assets fs.FS, version string) error {
 	}
 	app := core.Installation{Root: root, Assets: assets}
 	if args[0] == "init" {
+		release, err := app.Exclusive()
+		if err != nil {
+			return err
+		}
+		defer release()
 		return initialize(&app, args[1:])
 	}
 	if args[0] == "restore" {
@@ -57,6 +64,14 @@ func Execute(args []string, assets fs.FS, version string) error {
 	app.Settings, err = config.Load(root)
 	if err != nil {
 		return err
+	}
+	// These start, stop or back up the services, which an upgrade owns while it runs.
+	if slices.Contains([]string{"project", "up", "down", "backup"}, args[0]) {
+		release, err := app.Exclusive()
+		if err != nil {
+			return err
+		}
+		defer release()
 	}
 	switch args[0] {
 	case "project":
@@ -75,6 +90,8 @@ func Execute(args []string, assets fs.FS, version string) error {
 		}
 	case "backup":
 		return backup(app, args[1:], version)
+	case "upgrade":
+		return upgrade(app, args[1:])
 	case "logs":
 		return logs(app, args[1:])
 	case "codex":
