@@ -16,41 +16,56 @@ import (
 )
 
 func (a Installation) Up() error {
-	if !a.RunnerConfigured() {
-		return errors.New("connect a repository with switchyard project add first")
-	}
-	path, err := config.UnitPath(a.Root)
+	path, unit, err := a.checkUp()
 	if err != nil {
 		return err
+	}
+	if err := writeOnce(path, []byte(unit), 0600); err != nil {
+		return err
+	}
+	return a.start()
+}
+
+// checkUp makes every check up needs before it starts anything, and returns the
+// runner service it installs.
+func (a Installation) checkUp() (path, unit string, err error) {
+	if !a.RunnerConfigured() {
+		return "", "", errors.New("connect a repository with switchyard project add first")
+	}
+	if err := a.checkMigrationBlock(); err != nil {
+		return "", "", err
+	}
+	if path, err = config.UnitPath(a.Root); err != nil {
+		return "", "", err
 	}
 	template, err := fs.ReadFile(a.Assets, "deploy/switchyard.service")
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	existing, err := os.ReadFile(path)
 	unitExists := err == nil
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
+		return "", "", err
 	}
 	unit, home, err := a.runnerUnit(string(template), string(existing))
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	if unitExists && string(existing) != unit {
-		return fmt.Errorf("service configuration differs at %s; stop the runner and remove that unit file to recreate it", path)
+		return "", "", fmt.Errorf("service configuration differs at %s; stop the runner and remove that unit file to recreate it", path)
 	}
 	w, err := readWorkflow(filepath.Join(a.Root, "WORKFLOW.md"))
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	// ACP agents sign in through their own tools; see docs/agents.md.
 	if w.usesACP() {
 		if _, err := exec.LookPath("python3"); err != nil {
-			return errors.New("ACP agents need Python 3 for the tracker tool relay; install python3")
+			return "", "", errors.New("ACP agents need Python 3 for the tracker tool relay; install python3")
 		}
 	} else {
 		if _, err := exec.LookPath("codex"); err != nil {
-			return errors.New("install Codex, or configure an ACP agent in WORKFLOW.md (see docs/agents.md)")
+			return "", "", errors.New("install Codex, or configure an ACP agent in WORKFLOW.md (see docs/agents.md)")
 		}
 		login := a.command(filepath.Join(a.Root, "scripts/codex-runner"), "login", "status")
 		if home != "" {
@@ -58,15 +73,17 @@ func (a Installation) Up() error {
 		}
 		if err := login.Run(); err != nil {
 			if home != "" {
-				return fmt.Errorf("Codex is not signed in for CODEX_HOME %s; run codex login with that CODEX_HOME", home)
+				return "", "", fmt.Errorf("Codex is not signed in for CODEX_HOME %s; run codex login with that CODEX_HOME", home)
 			}
-			return errors.New("Codex is not signed in; run codex login (or switchyard codex login)")
+			return "", "", errors.New("Codex is not signed in; run codex login (or switchyard codex login)")
 		}
 	}
+	return path, unit, nil
+}
+
+// start starts Plane and the installed runner service as they are.
+func (a Installation) start() error {
 	if err := a.startBoard(); err != nil {
-		return err
-	}
-	if err := writeOnce(path, []byte(unit), 0600); err != nil {
 		return err
 	}
 	if err := a.run("systemctl", "--user", "daemon-reload"); err != nil {

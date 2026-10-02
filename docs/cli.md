@@ -33,16 +33,19 @@ switchyard_archive="switchyard-${switchyard_release}-linux_x86_64.tar.gz"
 gh release download "$switchyard_release" --repo Kthom1/switchyard \
   --pattern "$switchyard_archive" --pattern "$switchyard_archive.sha256"
 sha256sum -c "$switchyard_archive.sha256"
-mkdir -p "$HOME/.local/share" "$HOME/.local/bin"
-tar -xzf "$switchyard_archive" -C "$HOME/.local/share"
-ln -s "$HOME/.local/share/switchyard/switchyard" "$HOME/.local/bin/switchyard"
+switchyard_releases="$HOME/.local/share/switchyard/releases"
+mkdir -p "$switchyard_releases/$switchyard_release" "$HOME/.local/bin"
+tar -xzf "$switchyard_archive" -C "$switchyard_releases/$switchyard_release"
+ln -s "$switchyard_releases/$switchyard_release/switchyard/switchyard" "$HOME/.local/bin/switchyard"
 export PATH="$HOME/.local/bin:$PATH"
 switchyard version
 ```
 
-Keep the bundle together in `~/.local/share/switchyard`; the link lets you run
-the CLI from any directory while it locates the bundled runner and notices.
-The link command refuses to replace an existing `switchyard` command.
+Keep each release bundle intact in its own directory under
+`~/.local/share/switchyard/releases`; the link lets you run the CLI from any
+directory while it locates the bundled runner and notices. The link command
+refuses to replace an existing `switchyard` command. To move to a later release,
+see [Upgrade an installation](#upgrade-an-installation).
 
 To keep it on PATH in new terminals, add this line to `~/.bashrc` for Bash or
 `~/.zshrc` for Zsh, unless that directory is already on your PATH:
@@ -200,6 +203,7 @@ with `--repo`, `--project-id` and `--identifier`. It reuses the saved API key.
 | `switchyard down` | Stop services and preserve tasks, attachments, configuration and workspaces. |
 | `switchyard backup [DIRECTORY]` | Stop services and save database, attachments and configuration; run `up` to resume. |
 | `SWITCHYARD_HOME=/empty/destination switchyard restore BACKUP_DIRECTORY` | Restore into an empty installation; only Postgres starts. |
+| `switchyard upgrade [--wait] [--keep-backup]` | Run from a newly extracted release to move the installation to it. |
 | `switchyard codex` | Run the installed Codex with your selected configuration. |
 
 Repeated `init` calls preserve credentials and existing project mappings.
@@ -245,3 +249,76 @@ If you built the CLI separately, use
 Keep the complete runner bundle at that path so its notices can be installed.
 
 To start services again after `down`, run `up`.
+
+## Upgrade an installation
+
+Download and verify the new release as in [Install on your PATH](#install-on-your-path),
+extract it into its own directory, and run the upgrade with that release's CLI:
+
+```bash
+switchyard_download=$(mktemp -d)
+cd "$switchyard_download"
+switchyard_release=$(gh release view --repo Kthom1/switchyard --json tagName --jq .tagName)
+switchyard_archive="switchyard-${switchyard_release}-linux_x86_64.tar.gz"
+gh release download "$switchyard_release" --repo Kthom1/switchyard \
+  --pattern "$switchyard_archive" --pattern "$switchyard_archive.sha256"
+sha256sum -c "$switchyard_archive.sha256"
+switchyard_releases="$HOME/.local/share/switchyard/releases"
+mkdir -p "$switchyard_releases/$switchyard_release"
+tar -xzf "$switchyard_archive" -C "$switchyard_releases/$switchyard_release"
+"$switchyard_releases/$switchyard_release/switchyard/switchyard" upgrade
+```
+
+`upgrade` works through these steps and stops at the first problem:
+
+1. It refuses a runner service you edited by hand or generated from a changed
+   template, as `up` does, and refuses while the runner has running or retrying
+   tasks. Add `--wait` to wait until it is idle instead.
+2. It stops the runner and takes a backup of the board's data, attachments and
+   configuration, which stops Plane, then checks your files and the service again.
+3. It replaces release-owned files: the runner, scripts, deploy files, guides and
+   licenses. A file you changed is kept, and the release's copy is written beside
+   it as `FILE.new` for you to review. Files the installed release shipped and the
+   new one does not are removed unless you changed them. A linked file, or
+   anything in a linked directory, is yours: it is never written or removed.
+4. It regenerates the runner's service when the release changed its template,
+   starts Plane and the runner, and verifies the installed build, both services
+   and your project connections.
+5. It records the new build in `BUILD.txt`. Until then, nothing is final.
+
+If any step fails, it restores every file it changed, starts the previous release
+again and deletes the backup. The exception is a release that changed Plane's
+images: once it has started, Plane may have migrated its data, so the previous
+release is left stopped and the backup is kept for a restore as in
+[Backups](backup.md). Until you restore it, `up` and `upgrade` refuse and name
+`work/upgrade-plane-migrated`; delete that file only if Plane's data was not
+migrated.
+
+After a verified upgrade it deletes the backup (add `--keep-backup` to keep it)
+and points `~/.local/bin/switchyard` at the new release. In
+`~/.local/share/switchyard/releases`, it removes releases whose version
+directories (such as `v0.3.1`) are older than the previous release, and their
+extracted runner runtimes. A release whose runtime a running runner, such as
+another installation's, still uses is kept until a later upgrade can remove both. The previous release stays available for a quick
+rollback; directories it cannot place by version are kept, as is the release you
+upgrade to.
+
+Do not edit the runner service or release files while an upgrade runs; changes
+made before it starts are kept as described above.
+
+If an upgrade is interrupted, run `switchyard upgrade` again from any release.
+Before anything else it finishes an upgrade that recorded its build, or restores
+the previous release, once the runner is idle; then it does what you asked. Only
+one upgrade runs at a time, and `init`, `project`, `up`, `down` and `backup` wait
+their turn: they refuse while an upgrade runs or one has not finished.
+
+It never changes `config.json`, `.env`, `.env.plane`, `plane.json`, `WORKFLOW.md`,
+your Codex or Claude configuration, installed skills, or task workspaces. Task
+workspaces are also outside the backup, so push or save any unfinished work you
+need before upgrading.
+
+Installations from releases before v0.3.2 have no record of their original
+files. `upgrade` compares them with the release bundle that
+`~/.local/bin/switchyard` points to; a file it cannot verify is treated as changed
+and kept. A bundle extracted directly into `~/.local/share/switchyard` is not
+removed automatically; delete it after a successful upgrade.

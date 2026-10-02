@@ -102,6 +102,7 @@ are done.
 | I want to… | Read |
 | --- | --- |
 | Install Switchyard and run my first task | [CLI setup](docs/cli.md) |
+| Upgrade an installation to a new release | [Upgrade an installation](docs/cli.md#upgrade-an-installation) |
 | Build Switchyard from source | [Source build](docs/getting-started.md) |
 | Run in the background, connect remotely or stop a task | [Operating guide](docs/operations.md) |
 | Add skills and plugins | [Recommended plugins and skills](docs/recommended.md) |
