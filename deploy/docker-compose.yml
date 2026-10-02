@@ -60,6 +60,8 @@ x-app-env: &app-env
   LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY}
   WEBHOOK_ALLOWED_IPS: ${WEBHOOK_ALLOWED_IPS:-}
   WEBHOOK_ALLOWED_HOSTS: ${WEBHOOK_ALLOWED_HOSTS:-}
+  # Plane stores each API request with its response; the runner polls often.
+  API_ACTIVITY_LOG_RETENTION_DAYS: ${API_ACTIVITY_LOG_RETENTION_DAYS:-1}
 
 services:
   web:
