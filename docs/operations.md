@@ -176,6 +176,16 @@ measure inactivity, not total elapsed runtime; continuous output can keep a run
 alive. These settings do not cap total usage or cost. Park repeatedly failing
 tasks in Blocked, or stop the runner.
 
+## Plane storage
+
+Plane records every API request, with its response, in an activity log. The runner
+reads the board on every poll, so this log grows quickly: about 1.4 GB a day for
+three projects. Switchyard keeps it for one day instead of Plane's default 14;
+Plane removes older entries each day at 02:30 UTC. To keep it longer, set
+`API_ACTIVITY_LOG_RETENTION_DAYS` in `~/.switchyard/.env.plane` (or your
+`SWITCHYARD_HOME`), then run `switchyard down` and `switchyard up`. Tasks,
+comments and their history are separate and are not affected.
+
 ## Credentials
 
 Switchyard uses the installed Codex and your existing configuration and login.
