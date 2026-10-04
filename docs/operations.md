@@ -188,6 +188,9 @@ comments and their history are separate and are not affected.
 
 ## Credentials
 
+This section covers Codex, the default agent. For Claude Code or another ACP
+agent, including its sign-in and sandbox, see [Other coding agents](agents.md).
+
 Switchyard uses the installed Codex and your existing configuration and login.
 Use `codex login status` to check authentication and `codex login --device-auth`
 when sign-in is needed. The standard `CODEX_HOME` selects a different Codex

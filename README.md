@@ -2,7 +2,7 @@
 
 # Switchyard
 
-**Turn tasks on a board into reviewable code with Codex.**
+**Turn tasks on a board into reviewable code with Codex, Claude Code or another coding agent.**
 
 Queue the work. Run it on your own machine. Review the result.
 
@@ -12,18 +12,20 @@ Queue the work. Run it on your own machine. Review the result.
 
 ![Plane board showing fictional tasks in Todo, In Progress and Human Review](docs/images/board-demo.png)
 
-*A demo Plane board with tasks queued for Codex and ready for human review.*
+*A demo Plane board with tasks queued for an agent and ready for human review.*
 
 ## From “someone should fix this” to a branch you can review
 
-Switchyard connects a task board to Codex. Write a bug fix, feature or cleanup
-task in [Plane](https://plane.so), add the **agent** label, and move it to **Todo**.
-Codex picks it up, works in a separate checkout, runs checks and pushes a branch.
-The task returns to **Human Review** with a summary and check results.
+Switchyard connects a task board to a coding agent: Codex by default, or Claude
+Code and other [Agent Client Protocol](https://agentclientprotocol.com) agents.
+Write a bug fix, feature or cleanup task in [Plane](https://plane.so), add the
+**agent** label, and move it to **Todo**. The agent picks it up, works in a
+separate checkout, runs checks and pushes a branch. The task returns to
+**Human Review** with a summary and check results.
 
 ```mermaid
 flowchart LR
-    task["You queue a task<br/>Todo + agent"] --> work["Codex works<br/>Edit · check · push"]
+    task["You queue a task<br/>Todo + agent"] --> work["The agent works<br/>Edit · check · push"]
     work --> review["You review the branch<br/>Human Review"]
     review --> done["You merge and close<br/>Done"]
     classDef human fill:#e8efff,stroke:#486cb0,color:#172b4d
@@ -36,6 +38,7 @@ flowchart LR
 - **Keep the context with the task.** Plans, progress, blockers and results live on the board.
 - **Review before merging.** Each task gets its own checkout and branch. You decide what lands.
 - **Keep your repositories on one board.** Connect each Plane project to the repository its tasks should work on.
+- **Bring your agent.** Use Codex, or switch to Claude Code or another ACP agent with a few lines in `WORKFLOW.md`; the board and how tasks move stay the same.
 
 ## What would you give it?
 
@@ -46,7 +49,7 @@ Start with a small, independent task and a clear way to check the result. For ex
 > An empty search should show all items instead of an error.
 > Add a regression test and run the search tests.
 
-The workflow asks Codex to post what changed, the checks it ran, the commit and a
+The workflow asks the agent to post what changed, the checks it ran, the commit and a
 link to the branch. If it gets stuck, it moves the task to **Blocked** with an
 explanation. You can follow the board or open the live runner dashboard.
 
@@ -55,7 +58,8 @@ explanation. You can follow the board or open the live runner dashboard.
 Start on a **private Linux x86-64 machine**. It can be the computer you use every
 day, a spare machine or a server you access privately. The agent runs there;
 your browser can be on the same computer or another one. Switchyard uses your
-installed Codex, existing configuration and login.
+installed Codex, existing configuration and login, or
+[another coding agent](docs/agents.md) such as Claude Code.
 
 Download the [latest Switchyard release](https://github.com/Kthom1/switchyard/releases/latest),
 install the [Linux bundle on your PATH](docs/cli.md#install-on-your-path),
@@ -85,7 +89,7 @@ default; the runner dashboard has no login. See [private access](docs/operations
 | --- | --- |
 | [Plane](https://github.com/makeplane/plane) | Your task board, descriptions, comments and review queue. |
 | [Yardmaster](https://github.com/Kthom1/yardmaster) | Schedules runs, manages task checkouts and retries, and serves the live dashboard. A modified [OpenAI Symphony](https://github.com/openai/symphony). |
-| [Codex](https://developers.openai.com/codex/cli/) | Reads the task, edits code, runs checks and prepares a branch. Claude Code and other [ACP agents](docs/agents.md) can take its place. |
+| Coding agent | Reads the task, edits code, runs checks and prepares a branch. [Codex](https://developers.openai.com/codex/cli/) by default, or Claude Code and other [ACP agents](docs/agents.md). |
 | Switchyard | Connects Plane to Yardmaster, supplies the task workflow and sets up the local services. |
 
 One installation runs one Plane board and one Yardmaster runner. Each connected
